@@ -1,5 +1,5 @@
 diff --git a/.github/workflows/terminal-minimal-server.yml b/.github/workflows/terminal-minimal-server.yml
-index e2c75316..b80d0cfd 100644
+index e2c75316..fa933909 100644
 --- a/.github/workflows/terminal-minimal-server.yml
 +++ b/.github/workflows/terminal-minimal-server.yml
 @@ -1,4 +1,4 @@
@@ -8,7 +8,23 @@ index e2c75316..b80d0cfd 100644
  
  on:
    push:
-@@ -30,7 +30,7 @@ permissions:
+@@ -10,6 +10,7 @@ on:
+       - strata_control/**
+       - serve/**
+       - tests/terminal/test_runtime.py
++      - tests/terminal/test_bench_stop.py
+       - tools/minimal_server_smoke.py
+       - tools/strata_tokenizer.py
+   pull_request:
+@@ -21,6 +22,7 @@ on:
+       - strata_control/**
+       - serve/**
+       - tests/terminal/test_runtime.py
++      - tests/terminal/test_bench_stop.py
+       - tools/minimal_server_smoke.py
+       - tools/strata_tokenizer.py
+   workflow_dispatch:
+@@ -30,7 +32,7 @@ permissions:
  
  jobs:
    fake-engine:
@@ -17,7 +33,7 @@ index e2c75316..b80d0cfd 100644
      runs-on: ubuntu-latest
      timeout-minutes: 20
      steps:
-@@ -41,6 +41,7 @@ jobs:
+@@ -41,6 +43,7 @@ jobs:
          with:
            python-version: '3.11'
        - name: Install only pinned runtime requirements
@@ -25,15 +41,19 @@ index e2c75316..b80d0cfd 100644
          shell: bash
          run: |
            python -m venv "$RUNNER_TEMP/strata-runtime-venv"
-@@ -59,7 +60,20 @@ jobs:
+@@ -59,7 +62,24 @@ jobs:
                            '--report', str(report)], check=True)
            print(report.read_text())
            PY
 -      - name: Run full server suite without terminal packages
-+      - name: Run full server suite with explicit legacy-fixture opt-out
++      - name: Verify process-tree stop regressions
          shell: bash
          run: |
 -          "$RUNNER_TEMP/strata-runtime-venv/bin/python" -m unittest discover -s serve -p 'test_*.py'
++          "$RUNNER_TEMP/strata-runtime-venv/bin/python" -m unittest tests.terminal.test_bench_stop
++      - name: Run full server suite with explicit legacy-fixture opt-out
++        shell: bash
++        run: |
 +          STRATA_TOOL_MASK_STRICT=0 "$RUNNER_TEMP/strata-runtime-venv/bin/python" -m unittest discover -s serve -p 'test_*.py'
 +      - name: Verify automatic request constraints without mask environment
 +        if: ${{ !cancelled() && steps.runtime.outcome == 'success' }}
@@ -3601,6 +3621,50 @@ index 6e4dbe22..9962d315 100644
          (base / "home").mkdir(parents=True, exist_ok=True)
          self.patch = mock.patch.dict(os.environ, self.env)
  
+diff --git a/tests/terminal/test_bench_stop.py b/tests/terminal/test_bench_stop.py
+index 5419e480..b2569af4 100644
+--- a/tests/terminal/test_bench_stop.py
++++ b/tests/terminal/test_bench_stop.py
+@@ -36,11 +36,38 @@ def alive(pid: int) -> bool:
+         return True
+     # a zombie answers signal 0; only its parent has not collected it
+     try:
+-        return Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0] != "Z"
++        return Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0] not in ("Z", "X", "x")
+     except OSError:
++        # It may have been collected after signal 0 but before reading /proc.
++        try:
++            os.kill(pid, 0)
++        except ProcessLookupError:
++            return False
++        except PermissionError:
++            return True
+         return True
+ 
+ 
++class AliveProbe(unittest.TestCase):
++    def test_dead_task_is_not_a_live_process(self):
++        with mock.patch(f"{__name__}.WINDOWS", False), \
++                mock.patch.object(os, "kill", return_value=None), \
++                mock.patch.object(Path, "read_text", return_value="12345 (stand-in) X 1 2 3"):
++            self.assertFalse(alive(12345))
++
++    def test_collected_process_is_not_revived_by_a_missing_proc_entry(self):
++        with mock.patch(f"{__name__}.WINDOWS", False), \
++                mock.patch.object(os, "kill", side_effect=[None, ProcessLookupError]), \
++                mock.patch.object(Path, "read_text", side_effect=FileNotFoundError):
++            self.assertFalse(alive(12345))
++
++    def test_live_process_without_proc_files_is_still_alive(self):
++        with mock.patch(f"{__name__}.WINDOWS", False), \
++                mock.patch.object(os, "kill", return_value=None), \
++                mock.patch.object(Path, "read_text", side_effect=FileNotFoundError):
++            self.assertTrue(alive(12345))
++
++
+ class StopEngine(unittest.TestCase):
+     def setUp(self):
+         self.temp = tempfile.TemporaryDirectory(prefix="strata-benchstop-")
 diff --git a/tests/terminal/test_launch_dsv41.py b/tests/terminal/test_launch_dsv41.py
 index ce423c8f..f4c488d8 100644
 --- a/tests/terminal/test_launch_dsv41.py
