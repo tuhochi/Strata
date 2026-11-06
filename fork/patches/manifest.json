@@ -15,6 +15,10 @@
   ],
   "paths": [
     ".github/workflows/terminal-minimal-server.yml",
+    "apps/host/tests/component-updates.test.mjs",
+    "tests/desktop/test_tester_readme.py",
+    "tests/terminal/launch_support.py",
+    "tests/terminal/test_launch_dsv41.py",
     "docs/DETAILS.md",
     "include/strata/core/token_mask.hpp",
     "include/strata/core/verify.hpp",
@@ -25,6 +29,8 @@
     "serve/server.py",
     "serve/structured.py",
     "serve/test_constrain.py",
+    "serve/test_ds_parallel.py",
+    "serve/test_server.py",
     "serve/test_structured.py",
     "serve/test_tool_name_constraint.py",
     "setup.py",
@@ -36,5 +42,5 @@
     "metal/src/engine/window.cpp",
     "metal/CMakeLists.txt"
   ],
-  "sha256": "08af55ff3544baa8ccac6e5f3271272f033cd8ce7b96ffa322095d1f79c4b832"
+  "sha256": "ec7073ff606d0b628de819000f40caace7ade96a70ad59e8d7fb816135a1f470"
 }

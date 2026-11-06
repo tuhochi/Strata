@@ -1,23 +1,66 @@
 diff --git a/.github/workflows/terminal-minimal-server.yml b/.github/workflows/terminal-minimal-server.yml
-index e2c75316..d0311206 100644
+index e2c75316..b80d0cfd 100644
 --- a/.github/workflows/terminal-minimal-server.yml
 +++ b/.github/workflows/terminal-minimal-server.yml
-@@ -59,7 +59,13 @@ jobs:
+@@ -1,4 +1,4 @@
+-name: Minimal serving runtime
++name: Server regressions and minimal runtime
+ 
+ on:
+   push:
+@@ -30,7 +30,7 @@ permissions:
+ 
+ jobs:
+   fake-engine:
+-    name: Linux / runtime requirements only
++    name: Linux / minimal runtime and JSON validation
+     runs-on: ubuntu-latest
+     timeout-minutes: 20
+     steps:
+@@ -41,6 +41,7 @@ jobs:
+         with:
+           python-version: '3.11'
+       - name: Install only pinned runtime requirements
++        id: runtime
+         shell: bash
+         run: |
+           python -m venv "$RUNNER_TEMP/strata-runtime-venv"
+@@ -59,7 +60,20 @@ jobs:
                            '--report', str(report)], check=True)
            print(report.read_text())
            PY
 -      - name: Run full server suite without terminal packages
-+      - name: Run legacy parser suite with explicit strict-guard opt-out
++      - name: Run full server suite with explicit legacy-fixture opt-out
          shell: bash
          run: |
 -          "$RUNNER_TEMP/strata-runtime-venv/bin/python" -m unittest discover -s serve -p 'test_*.py'
 +          STRATA_TOOL_MASK_STRICT=0 "$RUNNER_TEMP/strata-runtime-venv/bin/python" -m unittest discover -s serve -p 'test_*.py'
 +      - name: Verify automatic request constraints without mask environment
++        if: ${{ !cancelled() && steps.runtime.outcome == 'success' }}
 +        shell: bash
 +        run: |
 +          "$RUNNER_TEMP/strata-runtime-venv/bin/python" -c 'from serve import constrain; assert constrain.available()'
 +          env -u STRATA_TOOL_MASK -u STRATA_TOOL_NAME_ENUM -u STRATA_TOOL_MASK_STRICT \
 +            "$RUNNER_TEMP/strata-runtime-venv/bin/python" -m unittest serve.test_tool_name_constraint serve.test_constrain serve.test_structured
++      - name: Verify optional JSON Schema postvalidation
++        if: ${{ !cancelled() && steps.runtime.outcome == 'success' }}
++        shell: bash
++        run: |
++          "$RUNNER_TEMP/strata-runtime-venv/bin/python" -m pip install 'jsonschema==4.26.0'
++          STRATA_TOOL_MASK_STRICT=0 "$RUNNER_TEMP/strata-runtime-venv/bin/python" -m unittest serve.test_constrain serve.test_structured
+diff --git a/apps/host/tests/component-updates.test.mjs b/apps/host/tests/component-updates.test.mjs
+index 34aadc0e..4547e984 100644
+--- a/apps/host/tests/component-updates.test.mjs
++++ b/apps/host/tests/component-updates.test.mjs
+@@ -313,7 +313,7 @@ test('packaged: an app update that ends the app is recorded as finished by the n
+ });
+ 
+ test('packaged: an update job an OLDER host left running is finished when the app program file is newer than the job', async () => {
+-  const exe = new URL('../../strata-desktop.exe', import.meta.url);          // <install>/strata-desktop.exe as seen from <install>/host
++  const exe = new URL(isWin ? '../../strata-desktop.exe' : '../../strata-desktop', import.meta.url);          // <install>/strata-desktop.exe as seen from <install>/host
+   const f = fixture({ withApp: true });
+   try {
+     const { fileURLToPath } = await import('node:url');
 diff --git a/docs/DETAILS.md b/docs/DETAILS.md
 index d2c0bb19..798f2ac8 100644
 --- a/docs/DETAILS.md
@@ -1295,7 +1338,7 @@ index d5ea4cd0..6b638b95 100644
      if choice == "none":
          return None, names, skipped
 diff --git a/serve/server.py b/serve/server.py
-index 01b76471..b7223da6 100644
+index 01b76471..e05943ef 100644
 --- a/serve/server.py
 +++ b/serve/server.py
 @@ -84,6 +84,7 @@ from serve import launch_identity  # noqa: E402
@@ -1347,19 +1390,17 @@ index 01b76471..b7223da6 100644
      def pen_from_key(self, orig_len: int, prompt_len: int) -> str:
          """` pen_from=N` for a leg that continues a request (prompt + what it generated): where the reply began, Strata's penalty window start. The all-cards split engine
          (sFNX) counts its penalty window over the last penalty_last_n tokens of the whole context, so the continued prompt gives it the same window and the engine refuses the
-@@ -2754,6 +2776,11 @@ class StrataEngine:
+@@ -2754,6 +2776,9 @@ class StrataEngine:
          rid_key = f" rid={rid}" if rid is not None else ""
          head = f"GENI {int(max_new)}{self.sampling_keys(sampling or {})}{rid_key} {embeddings}" if embeddings else \
              f"GEN {int(max_new)}{self.sampling_keys(sampling or {})}{rid_key}"
-+        head = f"GENI {int(max_new)}{self.sampling_keys(sampling or {})} {embeddings}" if embeddings else \
-+            f"GEN {int(max_new)}{self.sampling_keys(sampling or {})}"
 +        c = (sampling or {}).get(constrain.KEY) if self.supports_mask and not embeddings else None
 +        if c is not None:
 +            head += " mask=1"                               # the engine asks MQ before every window
          if prefill_only:                                 # split serving (serve/split.py): read the prompt, make no token
              if embeddings or int(max_new) != 0:
                  raise ValueError("prefill_only is a text prompt and max_new 0")
-@@ -2811,13 +2838,21 @@ class StrataEngine:
+@@ -2811,13 +2836,21 @@ class StrataEngine:
                      raise EngineDied(f"the engine stopped unexpectedly (exit code {self.exit_code()})")
                  heard = time.monotonic()                  # any line is output: T, PP, RESUME, INFO ...
                  beat = heard
@@ -1381,7 +1422,7 @@ index 01b76471..b7223da6 100644
                      if want_lp:
                          # the engine writes the token and its `LP` line in one flush, so the line is
                          # here now; an engine without logprobs leaves the next line a normal one
-@@ -2882,6 +2917,9 @@ class StrataEngine:
+@@ -2882,6 +2915,9 @@ class StrataEngine:
                      except queue.Empty:
                          raise self._silent("the engine did not finish the request after it was stopped (STOP) "
                                             f"within {allow:.0f} s") from None
@@ -1391,7 +1432,7 @@ index 01b76471..b7223da6 100644
                      if line is None or line.startswith("ERR"):
                          break
                      if line.startswith("DONE"):
-@@ -4880,6 +4918,60 @@ class Service:
+@@ -4880,6 +4916,60 @@ class Service:
              self.prompts = PromptEncoder(tokenizer, keep=slots) if slots is not None and slots > 0 \
                  else PromptEncoder(tokenizer)
  
@@ -1452,7 +1493,7 @@ index 01b76471..b7223da6 100644
      def set_family(self, family: str | None) -> None:
          """A family whose text differs from the Qwen form this server was written for (DeepSeek-V4.1: its own end
          token, DSML tool calls, reasoning-effort words).  The others keep the defaults."""
-@@ -5756,7 +5848,9 @@ class Service:
+@@ -5756,7 +5846,9 @@ class Service:
              "service": "strata", "model": self.model,
              "loaded": self.loaded(), "auto_load": hasattr(self.engine, "restart"),
              "structured_output": {"formats": ["json_object", "json_schema"], "method": "prompt_and_validate",
@@ -1463,7 +1504,7 @@ index 01b76471..b7223da6 100644
              "engine": (getattr(self.engine, "info", {}) or {}).get("version"),
              "started": int(self.started_at), "uptime_s": int(time.time() - self.started_at),
              "cache_max_tokens": ctx,
-@@ -6256,7 +6350,8 @@ class Service:
+@@ -6256,7 +6348,8 @@ class Service:
                  out.append(ev)
              return out
          opening = []                                    # without thinking the prompt ends with the forced opening:
@@ -1473,7 +1514,7 @@ index 01b76471..b7223da6 100644
              opening, force = parser.feed(force), None
          tail = ""                                       # the last characters written (the newlines before a call)
          answered, close_retried = False, False          # #1053: content or a call came out; the thinking was closed
-@@ -6374,6 +6469,7 @@ class Service:
+@@ -6374,6 +6467,7 @@ class Service:
                      prompt, thought = ids, 0            # thought: the reasoning tokens so far (the budget's count)
                      for ev in opening:
                          yield "event", ev
@@ -1481,7 +1522,7 @@ index 01b76471..b7223da6 100644
                      while True:
                          segment_before = getattr(self.engine, "last", None)
                          segments_before = len(segments)     # (#879: a pass sent again leaves no segment)
-@@ -6557,6 +6653,8 @@ class Service:
+@@ -6557,6 +6651,8 @@ class Service:
                                      for ev in evs:
                                          yield "event", ev
                                  prompt = prompt + seg + extra
@@ -1490,7 +1531,7 @@ index 01b76471..b7223da6 100644
                                  finish = "length"
                                  continue
                          if not (wrap or opens) or cancel.is_set():
-@@ -6590,6 +6688,8 @@ class Service:
+@@ -6590,6 +6686,8 @@ class Service:
                              finish = "stop"
                              break
                          prompt = prompt + seg + extra
@@ -1499,7 +1540,7 @@ index 01b76471..b7223da6 100644
                      if cancel.is_set():
                          finish = "cancel"
                      elif looped:
-@@ -7342,6 +7442,12 @@ def structured_chunks(chunks, validator):
+@@ -7342,6 +7440,12 @@ def structured_chunks(chunks, validator):
                  yield chunk if progress else None
          result = openai_collect(buffered)
          choice = result["choices"][0]
@@ -1512,7 +1553,7 @@ index 01b76471..b7223da6 100644
          content = validated_json(choice["message"]["content"], validator, choice["finish_reason"])
          # logprobs: the entries spell what the model wrote, which this function replaces with the
          # canonical JSON.  `_structured_logprobs` gives back the form the tokens spell, or None.
-@@ -8589,8 +8695,12 @@ def make_handler(svc: Service):
+@@ -8589,8 +8693,12 @@ def make_handler(svc: Service):
              if tool_choice_of(req.get("tool_choice"))[0] == "none":   # as the Responses route: no tools are offered
                  tools = None
              force = svc.force_text(forced_call(req.get("tool_choice"), tools))      # a bad value is a 400 before anything is sent
@@ -1548,10 +1589,10 @@ index 1809a0c3..02fbe86d 100644
          modules = None                 # the standard library is enough for "one JSON object"
 diff --git a/serve/test_constrain.py b/serve/test_constrain.py
 new file mode 100644
-index 00000000..8c165893
+index 00000000..d91b9ef3
 --- /dev/null
 +++ b/serve/test_constrain.py
-@@ -0,0 +1,962 @@
+@@ -0,0 +1,971 @@
 +"""serve/test_constrain.py - constrained decoding (serve/constrain.py) without a GPU:
 +  * the grammar and the masks themselves (llguidance over the byte tokenizer),
 +  * MockEngine under a mask over HTTP (chat and Responses, with tools, with thinking),
@@ -1575,6 +1616,7 @@ index 00000000..8c165893
 +from pathlib import Path
 +
 +from serve import constrain as C
++from serve import structured
 +from serve import frontend as FE
 +from serve import responses as R
 +from serve.frontend import ChatTemplate
@@ -1876,10 +1918,14 @@ index 00000000..8c165893
 +        with urllib.request.urlopen(self.base + "/v1/status", timeout=10) as s:
 +            self.assertTrue(json.loads(s.read())["structured_output"]["constrained_decoding"])
 +
-+    def test_without_the_mask_the_same_script_is_a_502(self):
++    def test_without_the_mask_matches_available_postvalidator(self):
 +        self.engine.supports_mask = False
 +        code, r = self.chat()
-+        self.assertEqual((code, r["error"]["code"]), (502, "structured_output_failed"))
++        if structured.jsonschema_modules() is None:
++            self.assertEqual(code, 200, r)
++            self.assertEqual(json.loads(r["choices"][0]["message"]["content"]), {"n": "7"})
++        else:
++            self.assertEqual((code, r["error"]["code"]), (502, "structured_output_failed"))
 +
 +    def test_thinking_stays_free(self):
 +        self.engine.scripts = [self.tok.encode('Plan {x}.</think>\n\nSure {"n": 1}<|im_end|>', parse_special=True)]
@@ -2087,7 +2133,11 @@ index 00000000..8c165893
 +        self.start(StrataEngine(str(self.exe), ["--max-context", "8192", "--no-mask"]))
 +        self.assertFalse(self.engine.supports_mask)
 +        code, r = self.chat()
-+        self.assertEqual((code, r["error"]["code"]), (502, "structured_output_failed"))
++        if structured.jsonschema_modules() is None:
++            self.assertEqual(code, 200, r)
++            self.assertEqual(json.loads(r["choices"][0]["message"]["content"]), {"n": "7"})
++        else:
++            self.assertEqual((code, r["error"]["code"]), (502, "structured_output_failed"))
 +        self.assertFalse(self.log.exists())
 +
 +    def test_a_stop_while_the_engine_waits_for_a_mask(self):
@@ -2514,6 +2564,49 @@ index 00000000..8c165893
 +
 +if __name__ == "__main__":
 +    unittest.main()
+diff --git a/serve/test_ds_parallel.py b/serve/test_ds_parallel.py
+index 627d30c1..f4041897 100644
+--- a/serve/test_ds_parallel.py
++++ b/serve/test_ds_parallel.py
+@@ -81,7 +81,7 @@ while True:
+         l = ""
+     if l is None or l == "QUIT":
+         break
+-    if l.startswith("GEN "):
++    if l.startswith(("GEN ", "GENI ")):
+         admit(l)
+     if active:
+         time.sleep(STEP)
+@@ -199,6 +199,14 @@ class Engine(unittest.TestCase):
+         first = self.log.read_text().splitlines()[0]
+         self.assertTrue(first.startswith("GEN 64 rid=1 80,1"), first)
+ 
++    def test_the_image_gen_line_carries_rid(self):
++        self.start(2)
++        got = [t for t in self.engine.generate([80, 1], 64, {}, threading.Event(),
++                                               embeddings="fixture-embeddings") if t is not None]
++        self.assertEqual(got, [80] * 6 + [257])
++        first = self.log.read_text().splitlines()[0]
++        self.assertEqual(first, "GENI 64 rid=1 fixture-embeddings 80,1")
++
+     def test_chat_requests_run_at_once(self):
+         self.start(2)
+         tok = ByteTokenizer()
+diff --git a/serve/test_server.py b/serve/test_server.py
+index 83059a77..01b46b22 100644
+--- a/serve/test_server.py
++++ b/serve/test_server.py
+@@ -1989,8 +1989,8 @@ class GpuChoice(unittest.TestCase):
+         self.assertEqual(child_env({"backend": "hip", "gpu": 1})["HIP_VISIBLE_DEVICES"], "1")       # Linux: KFD order
+         self.assertEqual(child_env({"backend": "hip", "hip_ordinal": 1})["HIP_VISIBLE_DEVICES"], "1")
+         self.assertEqual(child_env({"backend": "hip", "gpu": 0, "hip_ordinal": 1})["HIP_VISIBLE_DEVICES"], "1")
+-        self.assertEqual(child_env({"backend": "hip", "gpu": [1, 0], "hip_ordinal": 2})["HIP_VISIBLE_DEVICES"],
+-                         "1,0")                                          # a layer split keeps its list
++        self.assertEqual(child_env({"backend": "hip", "gpu": [1, 0], "gpu_order": "as_given", "hip_ordinal": 2})["HIP_VISIBLE_DEVICES"],
++                         "1,0")  # explicit order; auto ordering may depend on the host cards
+         self.assertEqual(child_env({"backend": "hip", "gpu": 0, "hip_ordinal": "x"})["HIP_VISIBLE_DEVICES"], "0")
+         plain = child_env({"backend": "hip"})
+         self.assertEqual(plain.get("HIP_VISIBLE_DEVICES"), os.environ.get("HIP_VISIBLE_DEVICES"))
 diff --git a/serve/test_structured.py b/serve/test_structured.py
 index f0e2c74a..18714064 100644
 --- a/serve/test_structured.py
@@ -3421,3 +3514,61 @@ index 22114dd4..b3ad2ca8 100644
                  if (!fol.empty() && fol_lp != nullptr && !ver.window_logprobs(fol_tgt, a + 1, produced_n, -1, fol_lp, err)) {
                      std::printf("ERR %s\n", err.c_str());
                      return 1;
+diff --git a/tests/desktop/test_tester_readme.py b/tests/desktop/test_tester_readme.py
+index a0d9fb6a..64a496b2 100644
+--- a/tests/desktop/test_tester_readme.py
++++ b/tests/desktop/test_tester_readme.py
+@@ -1,5 +1,6 @@
+ """The tester READMEs get their checksums from the files themselves (apps/desktop/scripts/make-tester-readme.sh)."""
+ import hashlib
++import json
+ import shutil
+ import subprocess
+ import tempfile
+@@ -39,7 +40,7 @@ class TesterReadmeTests(unittest.TestCase):
+         text = self.out.read_text()
+         self.assertIn(sha(app), text)
+         self.assertNotIn("@APPIMAGE@", text)
+-        for needle in ("libfuse2t64", "Ubuntu 26.04", "--browser", "--quit", "--save-logs", "Strata 0.2.3", NOTICE):
++        for needle in ("libfuse2t64", "Ubuntu 26.04", "--browser", "--quit", "--save-logs", "Strata " + json.loads((ROOT / "apps/desktop/package.json").read_text())["version"], NOTICE):
+             self.assertIn(needle, text)
+         run("--verify", self.out, "--files-dir", self.files)
+ 
+diff --git a/tests/terminal/launch_support.py b/tests/terminal/launch_support.py
+index 6e4dbe22..9962d315 100644
+--- a/tests/terminal/launch_support.py
++++ b/tests/terminal/launch_support.py
+@@ -25,6 +25,9 @@ class Home:
+         base = Path(self.tmp.name)
+         self.base = base
+         self.env = {
++            # Headless pilot fixtures model a Unicode terminal. Tests of legacy
++            # terminals override this explicitly instead of inheriting the runner.
++            "TERM": "xterm-256color",
+             "STRATA_PROFILE_DIR": str(base / "config" / "profiles"),
+             "STRATA_PRESET_DIR": str(base / "config" / "presets"),
+             "STRATA_LAUNCH_PRESET_DIR": str(base / "config" / "launch-presets"),
+@@ -38,7 +41,7 @@ class Home:
+             "HOME": str(base / "home"),
+             "USERPROFILE": str(base / "home"),
+         }
+-        self.env_clear = ("STRATA_SETTINGS_FILE", "STRATA_CONNECTION_DIR", "CUDA_VISIBLE_DEVICES", "HIP_VISIBLE_DEVICES", "ROCR_VISIBLE_DEVICES")   # a developer's own variables must not leak into a test either
++        self.env_clear = ("NO_COLOR", "STRATA_SETTINGS_FILE", "STRATA_CONNECTION_DIR", "CUDA_VISIBLE_DEVICES", "HIP_VISIBLE_DEVICES", "ROCR_VISIBLE_DEVICES")   # a developer's own variables must not leak into a test either
+         (base / "home").mkdir(parents=True, exist_ok=True)
+         self.patch = mock.patch.dict(os.environ, self.env)
+ 
+diff --git a/tests/terminal/test_launch_dsv41.py b/tests/terminal/test_launch_dsv41.py
+index ce423c8f..f4c488d8 100644
+--- a/tests/terminal/test_launch_dsv41.py
++++ b/tests/terminal/test_launch_dsv41.py
+@@ -115,7 +115,9 @@ class LaunchDeepSeek(unittest.TestCase):
+ 
+     def test_a_small_computer_gets_the_warnings_not_a_refusal(self):
+         self.hw = {**HW_12, "ram_gb": 64.0, "disk_free_gb": 100.0, "engine_vendor": "nvidia"}
+-        code, out, err = run_cli(["launch", "--plan", "--model", "ud-q8_k_xl", "--no-tui"])
++        # Placement checks the selected destination, independently of hardware discovery.
++        with mock.patch.object(Catalog, "disk_free", return_value=100.0):
++            code, out, err = run_cli(["launch", "--plan", "--model", "ud-q8_k_xl", "--no-tui"])
+         self.assertEqual(code, 0, err)
+         self.assertIn("read from the SSD", out)
+         self.assertIn("free disk space", out)
