@@ -39,13 +39,23 @@ without a JSON response format, and keep a byte-level name guard active through
 prose, thinking, and repeated Qwen XML calls. Speculative masks are computed
 against each draft prefix without advancing the live state.
 
-The installed `strata-fork` launcher enables `STRATA_TOOL_MASK_STRICT=1`. This mode
-requires a token-mask engine and llguidance; it refuses unsupported configurations
-instead of silently decoding freely. It currently covers Qwen XML function names,
-not DeepSeek DSML or arbitrary JSON tool-call spellings. Literal `<function=...>`
-examples in generated text are also constrained. Arguments and the semantic choice
-among *valid* tools are not guaranteed by name masking. Set
-`STRATA_TOOL_MASK_STRICT=0` explicitly to opt out. CUDA, HIP and SYCL are not claimed
+Starting with p3, the Python server activates the persistent name guard automatically
+when a request offers `tools`. No mask environment variables are required, whether
+started by the fork launcher or a custom service profile. `tool_choice: "none"`
+removes the tools and leaves ordinary text unconstrained. JSON masking continues
+to follow `response_format` or Responses' `text.format` independently.
+
+The guard requires a token-mask engine and llguidance and refuses unsupported
+configurations instead of silently decoding freely. It covers Qwen XML function
+names, not DeepSeek DSML or arbitrary JSON tool-call spellings. Literal
+`<function=...>` examples in generated text are also constrained. Arguments and
+the semantic choice among valid tools are not guaranteed by name masking.
+
+Only the optional server override `STRATA_TOOL_MASK_STRICT=0` disables this extra
+name guard for diagnostics; unset or `1` keeps request-driven protection active.
+It does not disable JSON masking requested by the client. The older
+`STRATA_TOOL_MASK` and `STRATA_TOOL_NAME_ENUM` activation flags are no longer read.
+The installer wrapper sets none of these flags. CUDA, HIP and SYCL are not claimed
 hardware-tested by this Mac release.
 
 ## Maintain on bolder, build on atlas

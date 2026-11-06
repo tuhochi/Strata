@@ -4925,12 +4925,12 @@ class Service:
         return bool(getattr(self.engine, "supports_mask", False)) and constrain.available()
 
     def _with_constraint(self, sampling, tools, thinking, force=None):
-        """A JSON response format on an engine that takes token masks: the request's sampling with a fresh
-        serve/constrain.Constraint for this pass (the schema, and with tools also a tool call).  Anything else -
-        no format, an older engine, llguidance missing, a schema llguidance cannot compile - leaves it as it was:
-        the prompt directive and the validation after the turn."""
+        """Request-driven constraints: declared tools activate the persistent name guard;
+        response_format/text.format activate JSON masking. Only an explicit
+        STRATA_TOOL_MASK_STRICT=0 opts out of the additional name guard.
+        The inherited JSON-only path retains its post-validation fallback."""
         fmt = constrain.format_of(sampling) if isinstance(sampling, dict) else None
-        strict_tools = bool(tools) and os.environ.get("STRATA_TOOL_MASK_STRICT") == "1"
+        strict_tools = bool(tools) and os.environ.get("STRATA_TOOL_MASK_STRICT", "1") != "0"
         if strict_tools:
             if not getattr(self.engine, "supports_mask", False) or not constrain.available():
                 raise ValueError("strict tool-name masking requires a token-mask engine and llguidance")
@@ -4949,8 +4949,7 @@ class Service:
             if force is not None:
                 guard.observe(self.tok.encode(self.force_text(force), parse_special=True))
             return {**(sampling or {}), constrain.KEY: guard}
-        bare_tools = bool(tools) and os.environ.get("STRATA_TOOL_MASK") == "1"
-        if (fmt is None and not bare_tools) or force is not None:
+        if fmt is None or force is not None:
             # a forced tool_choice appends the call's opening tag to the prompt; the grammar starts at that
             # tag and would wait for one that is already there - the directive and the validation stand in
             return sampling
@@ -4966,21 +4965,8 @@ class Service:
             vocab = self.__dict__.get("_llg_vocab")
             if vocab is None:
                 vocab = self.__dict__.setdefault("_llg_vocab", constrain.Vocab(self.tok, self.stop_ids))
-            # T3a opt-in (default off): STRATA_TOOL_NAME_ENUM=1 enumerates the request's declared tool names
-            # in the grammar.  The names come from the very tools array this request rendered (the same
-            # template_tools()/openai_tools() result the route built) - never from a later routes() call.
-            names = constrain.safe_tool_names(tools) if os.environ.get("STRATA_TOOL_NAME_ENUM") == "1" else []
-            if fmt is None and os.environ.get("STRATA_TOOL_MASK") == "1" and tools:
-                # T6 (bare tool calls, opt-in): no JSON format but tools are offered - constrain the call
-                # itself: a tag (or '<tool_call' text) can only arrive through the calls branch, where the
-                # name sits behind the enum and the separator frees the turn; prose stays possible (it just
-                # cannot START with '<' - a '<' later in the text is free, measured).  The call body after
-                # the name stays the free REST (the parser reads it, v3 lesson); thinking turns are unarmed
-                # as with the format path.  A prose turn under the mask costs the valid-UTF-8 character set
-                # (a byte vocabulary's invalid single bytes stay masked - measured 82/263) until the EOS.
-                fmt = {"type": "bare"}                      # grammar(None, ...) = the bare-call grammar
-            c = constrain.Constraint(vocab, constrain.grammar(None if fmt == {"type": "bare"} else fmt, bool(tools), vocab, tool_names=names or None),
-                                     armed=not thinking, name_enum=bool(names))
+            c = constrain.Constraint(vocab, constrain.grammar(fmt, bool(tools), vocab),
+                                     armed=not thinking)
         except Exception as e:                           # noqa: BLE001 - an unsupported schema keyword, a vocab problem
             constrain.note_once(f"constrained decoding off for a request: {str(e).splitlines()[0][:200]}")
             return sampling

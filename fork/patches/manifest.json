@@ -14,6 +14,7 @@
     }
   ],
   "paths": [
+    ".github/workflows/terminal-minimal-server.yml",
     "docs/DETAILS.md",
     "include/strata/core/token_mask.hpp",
     "include/strata/core/verify.hpp",
@@ -35,5 +36,5 @@
     "metal/src/engine/window.cpp",
     "metal/CMakeLists.txt"
   ],
-  "sha256": "fa730de6c6501569938de84917f88c9833eb938fd776980be5bdf903c77772bc"
+  "sha256": "07a19295455a5b406633c4f31777e6075882a9d4d3d10a21de8d75849391c8bb"
 }

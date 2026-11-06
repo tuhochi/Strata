@@ -15,6 +15,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -558,19 +559,9 @@ class ChatToolsWithJsonSchema(Http):
         engine = MockEngine(self.tok, 'Sure: {"n": 7}', max_context=16384)
         engine.supports_mask = True
         self.start(engine)
-        self._saved_enum = os.environ.get("STRATA_TOOL_NAME_ENUM")
 
-    def tearDown(self):
-        super().tearDown()
-        if self._saved_enum is None:
-            os.environ.pop("STRATA_TOOL_NAME_ENUM", None)
-        else:
-            os.environ["STRATA_TOOL_NAME_ENUM"] = self._saved_enum
-
-    def test_an_undeclared_name_degrades_to_free_decoding(self):
-        """T3b: with STRATA_TOOL_NAME_ENUM=1 a grammar problem (e.g. a name the regex cannot carry) must
-        degrade the request to free decoding - the answer still comes back, never a 502."""
-        os.environ["STRATA_TOOL_NAME_ENUM"] = "1"
+    def test_json_answer_with_tools_is_constrained_without_environment(self):
+        """A JSON answer remains constrained when tools are offered by the request."""
         code, r = self.chat_tools()
         self.assertEqual(code, 200, r)                       # the fallback in _with_constraint: no 502
         self.assertEqual(json.loads(r["choices"][0]["message"]["content"]), {"n": 7})
@@ -606,45 +597,67 @@ class ChatToolsWithJsonSchema(Http):
 # ----------------------------------------------------------------- the bare tool call under the mask
 @need
 class ChatBareToolMask(Http):
-    """T6 (plan §2 論点4, STRATA_TOOL_MASK=1 opt-in): bare tool calls - no response_format - are constrained:
-    the tag can only arrive through the calls branch (the name sits behind the enum, the separator frees the
-    turn), prose stays possible and a prose turn ends at the EOS like an unconstrained one."""
+    """Declared tools activate a persistent name guard without response_format or mask ENV.
+    Plain prose, Chat Completions, Responses and Anthropic tool turns remain supported."""
 
 
     def setUp(self):
         engine = MockEngine(self.tok, 'I checked it directly: 7', max_context=16384)
         engine.supports_mask = True
         self.start(engine)
-        self._saved = {k: os.environ.get(k) for k in ("STRATA_TOOL_MASK", "STRATA_TOOL_NAME_ENUM")}
+        self._env_patch = patch.dict(os.environ,
+            {k: v for k, v in os.environ.items() if k not in
+             ("STRATA_TOOL_MASK", "STRATA_TOOL_NAME_ENUM", "STRATA_TOOL_MASK_STRICT")}, clear=True)
+        self._env_patch.start()
 
     def tearDown(self):
         super().tearDown()
-        for k, v in self._saved.items():
-            if v is None:
-                os.environ.pop(k, None)
-            else:
-                os.environ[k] = v
+        self._env_patch.stop()
 
     def chat_tools(self, **kw):
         body = {"messages": [{"role": "user", "content": "run ls"}], "tools": TOOLS,
                 "reasoning_effort": "none", **kw}
         return self.post("/v1/chat/completions", body)
 
-    def test_off_by_default(self):
+    def test_tools_are_constrained_by_default_without_environment(self):
         code, r = self.chat_tools()
         self.assertEqual(code, 200, r)
-        self.assertIsNone(self.engine.last_sampling_constraint)   # the sampling carried no constraint key
+        self.assertIsInstance(self.engine.last_sampling_constraint, C.ToolNameConstraint)
+
+    def test_tool_choice_none_leaves_plain_text_unconstrained(self):
+        code, reply = self.chat_tools(tool_choice='none')
+        self.assertEqual(code, 200, reply)
+        self.assertEqual(reply['choices'][0]['message']['content'], 'I checked it directly: 7')
+        self.assertIsNone(self.engine.last_sampling_constraint)
+
+    def test_streamed_tool_call_is_constrained_without_environment(self):
+        self.engine.scripts = [self.tok.encode(CALL, parse_special=True) + self.tok.encode(IM_END, parse_special=True)]
+        self.engine.script, self.engine.turns = self.engine.scripts[0], 0
+        body = {'messages': [{'role': 'user', 'content': 'run ls'}], 'tools': TOOLS,
+                'reasoning_effort': 'none', 'stream': True}
+        req = urllib.request.Request(self.base + '/v1/chat/completions', data=json.dumps(body).encode(),
+                                     headers={'Content-Type': 'application/json'})
+        names = []
+        with urllib.request.urlopen(req, timeout=30) as response:
+            for line in response:
+                if not line.startswith(b'data:') or line.strip() == b'data: [DONE]':
+                    continue
+                event = json.loads(line[5:])
+                for choice in event.get('choices', []):
+                    for call in choice.get('delta', {}).get('tool_calls', []):
+                        if call.get('function', {}).get('name'):
+                            names.append(call['function']['name'])
+        self.assertEqual(names, ['exec_command'])
+        self.assertIsInstance(self.engine.last_sampling_constraint, C.ToolNameConstraint)
 
     def test_prose_answer_turn_under_the_mask(self):
-        """A prose turn (no call) ends at the EOS under the bare-call mask: masked=0 for prose text."""
-        os.environ["STRATA_TOOL_MASK"] = "1"
+        """Tools offered by the request do not force a tool call or alter ordinary prose."""
         code, r = self.chat_tools()
         self.assertEqual(code, 200, r)
         self.assertEqual(r["choices"][0]["message"]["content"], "I checked it directly: 7")
 
-    def test_a_bare_tool_call_is_masked_and_the_enum_ignored_without_the_flag(self):
-        """With STRATA_TOOL_MASK=1 alone (no STRATA_TOOL_NAME_ENUM), the tag feeds the free-REST branch."""
-        os.environ["STRATA_TOOL_MASK"] = "1"
+    def test_a_bare_tool_call_is_masked_without_activation_flags(self):
+        """A valid tool call passes under the request-driven guard."""
         self.engine.scripts = [self.tok.encode(CALL, parse_special=True) + self.tok.encode(IM_END, parse_special=True)]
         self.engine.script, self.engine.turns = self.engine.scripts[0], 0
         code, r = self.chat_tools()
@@ -653,22 +666,21 @@ class ChatBareToolMask(Http):
         self.assertEqual(r["choices"][0]["finish_reason"], "tool_calls")
         self.assertEqual([c["function"]["name"] for c in msg["tool_calls"]], ["exec_command"])
 
-    def test_the_enum_with_the_bare_mask_ends_at_the_separator(self):
-        """STRATA_TOOL_MASK=1 + STRATA_TOOL_NAME_ENUM=1: the tag feeds the enum, the separator frees the
-        turn (案1), and the call passes untouched - measured: finish_reason tool_calls, 200."""
-        os.environ["STRATA_TOOL_MASK"] = "1"
-        os.environ["STRATA_TOOL_NAME_ENUM"] = "1"
-        self.engine.scripts = [self.tok.encode(CALL, parse_special=True) + self.tok.encode(IM_END, parse_special=True)]
+    def test_the_persistent_guard_allows_declared_call_after_prose(self):
+        """A prose prefix does not release the request's persistent name guard."""
+        self.engine.scripts = [self.tok.encode('I will use a tool.\n' + CALL, parse_special=True)
+                               + self.tok.encode(IM_END, parse_special=True)]
         self.engine.script, self.engine.turns = self.engine.scripts[0], 0
         code, r = self.chat_tools()
         self.assertEqual(code, 200, r)
         msg = r["choices"][0]["message"]
         self.assertEqual(r["choices"][0]["finish_reason"], "tool_calls")
         self.assertEqual([c["function"]["name"] for c in msg["tool_calls"]], ["exec_command"])
+        self.assertIn('I will use a tool.', msg.get('content') or '')
+        self.assertIsInstance(self.engine.last_sampling_constraint, C.ToolNameConstraint)
 
     # --- the Responses route: bare tools, no text.format - the same shared generation loop
     def test_responses_bare_tool_call_under_the_mask(self):
-        os.environ["STRATA_TOOL_MASK"] = "1"
         self.engine.scripts = [self.tok.encode(CALL, parse_special=True) + self.tok.encode(IM_END, parse_special=True)]
         self.engine.script, self.engine.turns = self.engine.scripts[0], 0
         body = {"model": "x", "input": [{"role": "user", "content": [{"type": "text", "text": "run ls"}]}],
@@ -683,7 +695,6 @@ class ChatBareToolMask(Http):
 
     # --- the Anthropic route: bare tools, no format - the sampling carries no response_format either
     def test_anthropic_bare_tool_call_under_the_mask(self):
-        os.environ["STRATA_TOOL_MASK"] = "1"
         self.engine.scripts = [self.tok.encode(CALL, parse_special=True) + self.tok.encode(IM_END, parse_special=True)]
         self.engine.script, self.engine.turns = self.engine.scripts[0], 0
         body = {"model": "x", "max_tokens": 512, "stream": False,

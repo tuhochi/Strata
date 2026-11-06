@@ -7,7 +7,7 @@ import subprocess
 
 root = pathlib.Path(__file__).resolve().parents[1]
 meta = json.loads((root / 'fork/release.json').read_text())
-paths = ['docs/DETAILS.md', 'include/strata/core/token_mask.hpp', 'include/strata/core/verify.hpp',
+paths = ['.github/workflows/terminal-minimal-server.yml', 'docs/DETAILS.md', 'include/strata/core/token_mask.hpp', 'include/strata/core/verify.hpp',
          'requirements.txt', 'serve/constrain.py', 'serve/fake_mask_engine.py', 'serve/responses.py',
          'serve/server.py', 'serve/structured.py', 'serve/test_constrain.py', 'serve/test_structured.py',
          'serve/test_tool_name_constraint.py', 'setup.py', 'src/core/verify.cpp', 'src/program/generate.cpp',

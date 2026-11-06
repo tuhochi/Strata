@@ -22,7 +22,8 @@ def verify(feed, port, prefix, output):
            'STRATA_COMPONENTS_DIR': str(prefix / 'components'), 'STRATA_INSTALL_DIR': str(prefix / 'install'),
            'STRATA_PROFILE_DIR': str(prefix / 'profiles'), 'STRATA_RUNTIME_DIR': str(prefix / 'runtime'),
            'STRATA_LAUNCH_PRESET_DIR': str(prefix / 'presets'), 'XDG_STATE_HOME': str(prefix / 'state')}
-    for key in ['PYTHONHOME', 'PYTHONPATH', 'STRATA_PYTHON', 'STRATA_UPDATE_TRUSTED_KEYS']:
+    for key in ['PYTHONHOME', 'PYTHONPATH', 'STRATA_PYTHON', 'STRATA_UPDATE_TRUSTED_KEYS',
+                'STRATA_TOOL_MASK', 'STRATA_TOOL_NAME_ENUM', 'STRATA_TOOL_MASK_STRICT']:
         env.pop(key, None)
     checks = []
     def check(case, passed):
@@ -68,7 +69,10 @@ def verify(feed, port, prefix, output):
         check('packaged ARM llguidance and name guard reject undeclared prefix', True)
         composition_probe = """import base64
 from serve import constrain as c
-from serve.server import ByteTokenizer
+from serve.server import ByteTokenizer, Service
+from types import SimpleNamespace
+import os
+assert not any(k in os.environ for k in ('STRATA_TOOL_MASK', 'STRATA_TOOL_NAME_ENUM', 'STRATA_TOOL_MASK_STRICT'))
 class Padded(ByteTokenizer):
     n_vocab = 320
     types = [1] * 256 + [3] * 6 + [0] * 58
@@ -76,8 +80,11 @@ class Padded(ByteTokenizer):
         return bytes([token]) if token < 256 else self.SPECIALS[token - 256].encode() if token < 262 else b''
 t = Padded()
 v = c.Vocab(t, set(t.encode('<|im_end|>', parse_special=True)))
-i = c.Constraint(v, c.grammar({'type': 'json_object'}, True, v), armed=True)
-g = c.ToolNameConstraint(v, ['sql_query'], inner=i)
+app = Service.__new__(Service)
+app.engine = SimpleNamespace(supports_mask=True)
+app.tok, app.stop_ids, app._llg_vocab = t, set(t.encode('<|im_end|>', parse_special=True)), v
+g = app._with_constraint({'response_format': {'type': 'json_object'}}, [{'name': 'sql_query'}], False)[c.KEY]
+assert isinstance(g, c.ToolNameConstraint)
 assert len(g.mask()) == 40
 before = g.mask()
 r = g.reply(list(b'{"a')).split()
@@ -86,7 +93,7 @@ assert all(len(base64.b64decode(row)) == 40 for row in r[2:])
 assert g.mask() == before
 """
         command([str(python), '-c', composition_probe], cwd=bundle)
-        check('packaged ARM JSON and tool mask composition handles word-aligned vocabulary', True)
+        check('packaged ARM request-driven tool guard and JSON composition work without mask ENV', True)
 
         manifest = next((prefix / 'components').rglob('engine-component.json'))
         engine = manifest.parent

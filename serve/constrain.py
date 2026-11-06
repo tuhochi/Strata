@@ -175,8 +175,8 @@ _NAME_SAFE = re.compile(r"[A-Za-z0-9_-]+")    # a tool name safe to put in a gra
 def safe_tool_names(tools) -> list[str]:
     """The declared tool names a grammar can enumerate: the request's tools array (template form {name, ...} or
     OpenAI form {type: function, function: {name, ...}} - the same array the route built from its own
-    template_tools()/openai_tools() call), filtered to [A-Za-z0-9_-]+.  A name outside that set is left out and
-    falls back to the free REST branch (a grammar regex literal must not carry stray regex syntax)."""
+    template_tools()/openai_tools() call), filtered to [A-Za-z0-9_-]+. The server's persistent guard rejects
+    the request if any name is filtered out; direct grammar callers choose their own invalid-name policy."""
     out = []
     for t in tools or []:
         if not isinstance(t, dict):
@@ -237,13 +237,13 @@ def _custom_calls_grammar(entries, vocab, body_bound=True):
 
 def grammar(rf: dict | None, with_tools: bool, vocab: Vocab, tool_names=None) -> str:
     """The Lark grammar: optional whitespace, then the schema's JSON - or, with tools, a tool call.
-    With no format but tools and STRATA_TOOL_MASK=1 (the bare-call grammar), the choice is the call or
+    With no format but tools (the legacy bare-call grammar helper), the choice is the call or
     PROSE: prose cannot START with '<' (a tag or '<tool_call' text must go through the calls branch, where
     the name sits behind the enum) but a '<' later in the text stays free (measured: masked=0, EOS ok).
-    `tool_names` (opt-in, T3a): when a non-empty list is given, the call's name sits behind a literal
+    `tool_names`: when a non-empty list is given, the call's name sits behind a literal
     single-choice regex (only these names, with a maximal-munch lookahead) instead of being free; the body
     after the name stays the free REST, as always (the server's tool-call parser reads it, v3 lesson)."""
-    if rf is None:                                   # the bare-call grammar (STRATA_TOOL_MASK=1)
+    if rf is None:                                   # legacy bare-call grammar for direct callers
         if not with_tools:
             raise ValueError("the bare-call grammar needs tools")
         names = [n for n in (tool_names or []) if _NAME_SAFE.fullmatch(n)]
@@ -678,7 +678,19 @@ class ToolNameConstraint:
                 inner_rows = [base64.b64decode(parts[1])]
             elif parts[0] == 'MKN':
                 inner_rows = [base64.b64decode(b) for b in parts[2:]]
-            elif parts[0] != 'MF':
+            elif parts[0] == 'MF':
+                # The JSON matcher is not armed during thinking. Preserve its
+                # cut marker even though our persistent name guard still emits
+                # MKN masks: no draft after </think> may bypass the JSON mask.
+                cut_ids = set()
+                for part in parts[1:]:
+                    if part.startswith('cut='):
+                        cut_ids.update(int(token) for token in part[4:].split(',') if token)
+                for index, token in enumerate(drafts):
+                    if token in cut_ids:
+                        drafts = drafts[:index]
+                        break
+            else:
                 raise ValueError('invalid schema mask reply')
         rows, state = [], self.state
         for row in range(len(drafts) + 1):

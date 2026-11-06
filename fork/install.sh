@@ -56,8 +56,6 @@ export STRATA_RUNTIME_DIR="$ROOT/runtime"
 export STRATA_LAUNCH_PRESET_DIR="$ROOT/presets"
 export XDG_STATE_HOME="$ROOT/state"
 export STRATA_UPDATE_FEED="$(cat "$ROOT/feed-url")/strata-feed.json"
-export STRATA_TOOL_MASK=1 STRATA_TOOL_NAME_ENUM=1
-export STRATA_TOOL_MASK_STRICT=${STRATA_TOOL_MASK_STRICT:-1}
 exec "$ROOT/bin/strata" "$@"
 LAUNCH
 chmod 755 "$ROOT/strata-fork"

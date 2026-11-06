@@ -26,6 +26,79 @@ class ToolNameConstraintTests(unittest.TestCase):
             sampling = app._with_constraint({}, tools, thinking=True)
         self.assertIsNotNone(sampling.get(C.KEY))
 
+    def app(self, supports_mask=True):
+        app = Service.__new__(Service)
+        app.engine = SimpleNamespace(supports_mask=supports_mask)
+        app.tok, app.stop_ids = self.tok, self.stop
+        return app
+
+    def test_tools_activate_name_guard_without_any_mask_environment(self):
+        tools = [{'name': 'sql_query', 'parameters': {'type': 'object'}}]
+        with patch.dict(os.environ, {}, clear=True):
+            sampling = self.app()._with_constraint({}, tools, thinking=False)
+        guard = sampling[C.KEY]
+        self.assertIsInstance(guard, C.ToolNameConstraint)
+        self.feed(guard, '<tool_call><function=')
+        self.assertTrue(C.Constraint.allowed(guard.mask(), ord('s')))
+        self.assertFalse(C.Constraint.allowed(guard.mask(), ord('m')))
+
+    def test_json_thinking_cut_is_preserved_by_request_driven_name_guard(self):
+        fmt = {'type': 'json_object'}
+        with patch.dict(os.environ, {}, clear=True):
+            sampling = self.app()._with_constraint({'response_format': fmt},
+                                                  [{'name': 'sql_query'}], thinking=True)
+        guard = sampling[C.KEY]
+        prefix = b'plan</think>'
+        reply = guard.reply(list(prefix + b' BAD')).split()
+        # The end-of-thinking marker must be the head's final token in this
+        # window. Bytes after it need a fresh, now-armed JSON mask.
+        self.assertEqual(reply[:2], ['MKN', str(len(prefix))])
+        for token in prefix:
+            self.assertTrue(C.Constraint.allowed(guard.mask(), token))
+            guard.feed(token)
+        self.assertTrue(guard.inner.armed)
+        self.assertTrue(C.Constraint.allowed(guard.mask(), ord('{')))
+        self.assertFalse(C.Constraint.allowed(guard.mask(), ord('B')))
+
+    def test_legacy_mask_switches_are_not_required_for_request_activation(self):
+        tools = [{'name': 'sql_query', 'parameters': {'type': 'object'}}]
+        with patch.dict(os.environ, {'STRATA_TOOL_MASK': '0', 'STRATA_TOOL_NAME_ENUM': '0'}, clear=True):
+            sampling = self.app()._with_constraint({}, tools, thinking=False)
+        self.assertIsInstance(sampling[C.KEY], C.ToolNameConstraint)
+
+    def test_explicit_strict_opt_out_preserves_requested_json_constraint(self):
+        fmt = {'type': 'json_schema', 'json_schema': {'name': 'result', 'schema': {
+            'type': 'object', 'properties': {'result': {'type': 'integer'}},
+            'required': ['result'], 'additionalProperties': False}}}
+        with patch.dict(os.environ, {'STRATA_TOOL_MASK_STRICT': '0'}, clear=True):
+            app = self.app()
+            sampling = app._with_constraint({'response_format': fmt},
+                                           [{'name': 'sql_query'}], thinking=False)
+            plain = {}
+            self.assertIs(app._with_constraint(plain, [{'name': 'sql_query'}], False), plain)
+        guard = sampling[C.KEY]
+        self.assertIsInstance(guard, C.Constraint)
+        self.assertNotIsInstance(guard, C.ToolNameConstraint)
+        for token in b'{"result":':
+            self.assertTrue(C.Constraint.allowed(guard.mask(), token))
+            guard.feed(token)
+        self.assertFalse(C.Constraint.allowed(guard.mask(), ord('"')))
+
+    def test_no_tools_or_json_leaves_plain_text_unchanged_without_environment(self):
+        sampling = {'temperature': 0.3}
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertIs(self.app(False)._with_constraint(sampling, None, False), sampling)
+
+    def test_tools_fail_closed_without_environment_on_unsupported_engine(self):
+        with patch.dict(os.environ, {}, clear=True):
+            with self.assertRaisesRegex(ValueError, 'token-mask engine'):
+                self.app(False)._with_constraint({}, [{'name': 'sql_query'}], False)
+
+    def test_missing_mask_library_fails_closed_without_activation_environment(self):
+        with patch.dict(os.environ, {}, clear=True), patch.object(C, 'available', return_value=False):
+            with self.assertRaisesRegex(ValueError, 'llguidance'):
+                self.app()._with_constraint({}, [{'name': 'sql_query'}], False)
+
     def guard(self):
         return C.ToolNameConstraint(self.vocab, ['sql_query', 'exec', 'exec_command'])
 

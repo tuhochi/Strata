@@ -1,3 +1,23 @@
+diff --git a/.github/workflows/terminal-minimal-server.yml b/.github/workflows/terminal-minimal-server.yml
+index e2c75316..d0311206 100644
+--- a/.github/workflows/terminal-minimal-server.yml
++++ b/.github/workflows/terminal-minimal-server.yml
+@@ -59,7 +59,13 @@ jobs:
+                           '--report', str(report)], check=True)
+           print(report.read_text())
+           PY
+-      - name: Run full server suite without terminal packages
++      - name: Run legacy parser suite with explicit strict-guard opt-out
+         shell: bash
+         run: |
+-          "$RUNNER_TEMP/strata-runtime-venv/bin/python" -m unittest discover -s serve -p 'test_*.py'
++          STRATA_TOOL_MASK_STRICT=0 "$RUNNER_TEMP/strata-runtime-venv/bin/python" -m unittest discover -s serve -p 'test_*.py'
++      - name: Verify automatic request constraints without mask environment
++        shell: bash
++        run: |
++          "$RUNNER_TEMP/strata-runtime-venv/bin/python" -c 'from serve import constrain; assert constrain.available()'
++          env -u STRATA_TOOL_MASK -u STRATA_TOOL_NAME_ENUM -u STRATA_TOOL_MASK_STRICT \
++            "$RUNNER_TEMP/strata-runtime-venv/bin/python" -m unittest serve.test_tool_name_constraint serve.test_constrain serve.test_structured
 diff --git a/docs/DETAILS.md b/docs/DETAILS.md
 index d2c0bb19..97318044 100644
 --- a/docs/DETAILS.md
@@ -356,10 +376,10 @@ index 19b446ff..3a4559c2 100644
  markupsafe==3.0.3
 diff --git a/serve/constrain.py b/serve/constrain.py
 new file mode 100644
-index 00000000..76c35943
+index 00000000..a9aff75d
 --- /dev/null
 +++ b/serve/constrain.py
-@@ -0,0 +1,737 @@
+@@ -0,0 +1,749 @@
 +"""serve/constrain.py - constrained decoding for the JSON response formats: a token mask per step, from llguidance.
 +
 +The engine (strata --serve, `mask=1` on GEN, INFO token_mask=1, or token_mask=2 when it can mask a whole MTP
@@ -537,8 +557,8 @@ index 00000000..76c35943
 +def safe_tool_names(tools) -> list[str]:
 +    """The declared tool names a grammar can enumerate: the request's tools array (template form {name, ...} or
 +    OpenAI form {type: function, function: {name, ...}} - the same array the route built from its own
-+    template_tools()/openai_tools() call), filtered to [A-Za-z0-9_-]+.  A name outside that set is left out and
-+    falls back to the free REST branch (a grammar regex literal must not carry stray regex syntax)."""
++    template_tools()/openai_tools() call), filtered to [A-Za-z0-9_-]+. The server's persistent guard rejects
++    the request if any name is filtered out; direct grammar callers choose their own invalid-name policy."""
 +    out = []
 +    for t in tools or []:
 +        if not isinstance(t, dict):
@@ -599,13 +619,13 @@ index 00000000..76c35943
 +
 +def grammar(rf: dict | None, with_tools: bool, vocab: Vocab, tool_names=None) -> str:
 +    """The Lark grammar: optional whitespace, then the schema's JSON - or, with tools, a tool call.
-+    With no format but tools and STRATA_TOOL_MASK=1 (the bare-call grammar), the choice is the call or
++    With no format but tools (the legacy bare-call grammar helper), the choice is the call or
 +    PROSE: prose cannot START with '<' (a tag or '<tool_call' text must go through the calls branch, where
 +    the name sits behind the enum) but a '<' later in the text stays free (measured: masked=0, EOS ok).
-+    `tool_names` (opt-in, T3a): when a non-empty list is given, the call's name sits behind a literal
++    `tool_names`: when a non-empty list is given, the call's name sits behind a literal
 +    single-choice regex (only these names, with a maximal-munch lookahead) instead of being free; the body
 +    after the name stays the free REST, as always (the server's tool-call parser reads it, v3 lesson)."""
-+    if rf is None:                                   # the bare-call grammar (STRATA_TOOL_MASK=1)
++    if rf is None:                                   # legacy bare-call grammar for direct callers
 +        if not with_tools:
 +            raise ValueError("the bare-call grammar needs tools")
 +        names = [n for n in (tool_names or []) if _NAME_SAFE.fullmatch(n)]
@@ -1040,7 +1060,19 @@ index 00000000..76c35943
 +                inner_rows = [base64.b64decode(parts[1])]
 +            elif parts[0] == 'MKN':
 +                inner_rows = [base64.b64decode(b) for b in parts[2:]]
-+            elif parts[0] != 'MF':
++            elif parts[0] == 'MF':
++                # The JSON matcher is not armed during thinking. Preserve its
++                # cut marker even though our persistent name guard still emits
++                # MKN masks: no draft after </think> may bypass the JSON mask.
++                cut_ids = set()
++                for part in parts[1:]:
++                    if part.startswith('cut='):
++                        cut_ids.update(int(token) for token in part[4:].split(',') if token)
++                for index, token in enumerate(drafts):
++                    if token in cut_ids:
++                        drafts = drafts[:index]
++                        break
++            else:
 +                raise ValueError('invalid schema mask reply')
 +        rows, state = [], self.state
 +        for row in range(len(drafts) + 1):
@@ -1251,7 +1283,7 @@ index d5ea4cd0..6b638b95 100644
      if choice == "none":
          return None, names, skipped
 diff --git a/serve/server.py b/serve/server.py
-index 01b76471..730641ca 100644
+index 01b76471..b7223da6 100644
 --- a/serve/server.py
 +++ b/serve/server.py
 @@ -84,6 +84,7 @@ from serve import launch_identity  # noqa: E402
@@ -1347,7 +1379,7 @@ index 01b76471..730641ca 100644
                      if line is None or line.startswith("ERR"):
                          break
                      if line.startswith("DONE"):
-@@ -4880,6 +4918,74 @@ class Service:
+@@ -4880,6 +4918,60 @@ class Service:
              self.prompts = PromptEncoder(tokenizer, keep=slots) if slots is not None and slots > 0 \
                  else PromptEncoder(tokenizer)
  
@@ -1358,12 +1390,12 @@ index 01b76471..730641ca 100644
 +        return bool(getattr(self.engine, "supports_mask", False)) and constrain.available()
 +
 +    def _with_constraint(self, sampling, tools, thinking, force=None):
-+        """A JSON response format on an engine that takes token masks: the request's sampling with a fresh
-+        serve/constrain.Constraint for this pass (the schema, and with tools also a tool call).  Anything else -
-+        no format, an older engine, llguidance missing, a schema llguidance cannot compile - leaves it as it was:
-+        the prompt directive and the validation after the turn."""
++        """Request-driven constraints: declared tools activate the persistent name guard;
++        response_format/text.format activate JSON masking. Only an explicit
++        STRATA_TOOL_MASK_STRICT=0 opts out of the additional name guard.
++        The inherited JSON-only path retains its post-validation fallback."""
 +        fmt = constrain.format_of(sampling) if isinstance(sampling, dict) else None
-+        strict_tools = bool(tools) and os.environ.get("STRATA_TOOL_MASK_STRICT") == "1"
++        strict_tools = bool(tools) and os.environ.get("STRATA_TOOL_MASK_STRICT", "1") != "0"
 +        if strict_tools:
 +            if not getattr(self.engine, "supports_mask", False) or not constrain.available():
 +                raise ValueError("strict tool-name masking requires a token-mask engine and llguidance")
@@ -1382,8 +1414,7 @@ index 01b76471..730641ca 100644
 +            if force is not None:
 +                guard.observe(self.tok.encode(self.force_text(force), parse_special=True))
 +            return {**(sampling or {}), constrain.KEY: guard}
-+        bare_tools = bool(tools) and os.environ.get("STRATA_TOOL_MASK") == "1"
-+        if (fmt is None and not bare_tools) or force is not None:
++        if fmt is None or force is not None:
 +            # a forced tool_choice appends the call's opening tag to the prompt; the grammar starts at that
 +            # tag and would wait for one that is already there - the directive and the validation stand in
 +            return sampling
@@ -1399,21 +1430,8 @@ index 01b76471..730641ca 100644
 +            vocab = self.__dict__.get("_llg_vocab")
 +            if vocab is None:
 +                vocab = self.__dict__.setdefault("_llg_vocab", constrain.Vocab(self.tok, self.stop_ids))
-+            # T3a opt-in (default off): STRATA_TOOL_NAME_ENUM=1 enumerates the request's declared tool names
-+            # in the grammar.  The names come from the very tools array this request rendered (the same
-+            # template_tools()/openai_tools() result the route built) - never from a later routes() call.
-+            names = constrain.safe_tool_names(tools) if os.environ.get("STRATA_TOOL_NAME_ENUM") == "1" else []
-+            if fmt is None and os.environ.get("STRATA_TOOL_MASK") == "1" and tools:
-+                # T6 (bare tool calls, opt-in): no JSON format but tools are offered - constrain the call
-+                # itself: a tag (or '<tool_call' text) can only arrive through the calls branch, where the
-+                # name sits behind the enum and the separator frees the turn; prose stays possible (it just
-+                # cannot START with '<' - a '<' later in the text is free, measured).  The call body after
-+                # the name stays the free REST (the parser reads it, v3 lesson); thinking turns are unarmed
-+                # as with the format path.  A prose turn under the mask costs the valid-UTF-8 character set
-+                # (a byte vocabulary's invalid single bytes stay masked - measured 82/263) until the EOS.
-+                fmt = {"type": "bare"}                      # grammar(None, ...) = the bare-call grammar
-+            c = constrain.Constraint(vocab, constrain.grammar(None if fmt == {"type": "bare"} else fmt, bool(tools), vocab, tool_names=names or None),
-+                                     armed=not thinking, name_enum=bool(names))
++            c = constrain.Constraint(vocab, constrain.grammar(fmt, bool(tools), vocab),
++                                     armed=not thinking)
 +        except Exception as e:                           # noqa: BLE001 - an unsupported schema keyword, a vocab problem
 +            constrain.note_once(f"constrained decoding off for a request: {str(e).splitlines()[0][:200]}")
 +            return sampling
@@ -1422,7 +1440,7 @@ index 01b76471..730641ca 100644
      def set_family(self, family: str | None) -> None:
          """A family whose text differs from the Qwen form this server was written for (DeepSeek-V4.1: its own end
          token, DSML tool calls, reasoning-effort words).  The others keep the defaults."""
-@@ -5756,7 +5862,9 @@ class Service:
+@@ -5756,7 +5848,9 @@ class Service:
              "service": "strata", "model": self.model,
              "loaded": self.loaded(), "auto_load": hasattr(self.engine, "restart"),
              "structured_output": {"formats": ["json_object", "json_schema"], "method": "prompt_and_validate",
@@ -1433,7 +1451,7 @@ index 01b76471..730641ca 100644
              "engine": (getattr(self.engine, "info", {}) or {}).get("version"),
              "started": int(self.started_at), "uptime_s": int(time.time() - self.started_at),
              "cache_max_tokens": ctx,
-@@ -6256,7 +6364,8 @@ class Service:
+@@ -6256,7 +6350,8 @@ class Service:
                  out.append(ev)
              return out
          opening = []                                    # without thinking the prompt ends with the forced opening:
@@ -1443,7 +1461,7 @@ index 01b76471..730641ca 100644
              opening, force = parser.feed(force), None
          tail = ""                                       # the last characters written (the newlines before a call)
          answered, close_retried = False, False          # #1053: content or a call came out; the thinking was closed
-@@ -6374,6 +6483,7 @@ class Service:
+@@ -6374,6 +6469,7 @@ class Service:
                      prompt, thought = ids, 0            # thought: the reasoning tokens so far (the budget's count)
                      for ev in opening:
                          yield "event", ev
@@ -1451,7 +1469,7 @@ index 01b76471..730641ca 100644
                      while True:
                          segment_before = getattr(self.engine, "last", None)
                          segments_before = len(segments)     # (#879: a pass sent again leaves no segment)
-@@ -6557,6 +6667,8 @@ class Service:
+@@ -6557,6 +6653,8 @@ class Service:
                                      for ev in evs:
                                          yield "event", ev
                                  prompt = prompt + seg + extra
@@ -1460,7 +1478,7 @@ index 01b76471..730641ca 100644
                                  finish = "length"
                                  continue
                          if not (wrap or opens) or cancel.is_set():
-@@ -6590,6 +6702,8 @@ class Service:
+@@ -6590,6 +6688,8 @@ class Service:
                              finish = "stop"
                              break
                          prompt = prompt + seg + extra
@@ -1469,7 +1487,7 @@ index 01b76471..730641ca 100644
                      if cancel.is_set():
                          finish = "cancel"
                      elif looped:
-@@ -7342,6 +7456,12 @@ def structured_chunks(chunks, validator):
+@@ -7342,6 +7442,12 @@ def structured_chunks(chunks, validator):
                  yield chunk if progress else None
          result = openai_collect(buffered)
          choice = result["choices"][0]
@@ -1482,7 +1500,7 @@ index 01b76471..730641ca 100644
          content = validated_json(choice["message"]["content"], validator, choice["finish_reason"])
          # logprobs: the entries spell what the model wrote, which this function replaces with the
          # canonical JSON.  `_structured_logprobs` gives back the form the tokens spell, or None.
-@@ -8589,8 +8709,12 @@ def make_handler(svc: Service):
+@@ -8589,8 +8695,12 @@ def make_handler(svc: Service):
              if tool_choice_of(req.get("tool_choice"))[0] == "none":   # as the Responses route: no tools are offered
                  tools = None
              force = svc.force_text(forced_call(req.get("tool_choice"), tools))      # a bad value is a 400 before anything is sent
@@ -1518,10 +1536,10 @@ index 1809a0c3..02fbe86d 100644
          modules = None                 # the standard library is enough for "one JSON object"
 diff --git a/serve/test_constrain.py b/serve/test_constrain.py
 new file mode 100644
-index 00000000..32e5291f
+index 00000000..8c165893
 --- /dev/null
 +++ b/serve/test_constrain.py
-@@ -0,0 +1,951 @@
+@@ -0,0 +1,962 @@
 +"""serve/test_constrain.py - constrained decoding (serve/constrain.py) without a GPU:
 +  * the grammar and the masks themselves (llguidance over the byte tokenizer),
 +  * MockEngine under a mask over HTTP (chat and Responses, with tools, with thinking),
@@ -1539,6 +1557,7 @@ index 00000000..32e5291f
 +import tempfile
 +import threading
 +import unittest
++from unittest.mock import patch
 +import urllib.error
 +import urllib.request
 +from pathlib import Path
@@ -2082,19 +2101,9 @@ index 00000000..32e5291f
 +        engine = MockEngine(self.tok, 'Sure: {"n": 7}', max_context=16384)
 +        engine.supports_mask = True
 +        self.start(engine)
-+        self._saved_enum = os.environ.get("STRATA_TOOL_NAME_ENUM")
 +
-+    def tearDown(self):
-+        super().tearDown()
-+        if self._saved_enum is None:
-+            os.environ.pop("STRATA_TOOL_NAME_ENUM", None)
-+        else:
-+            os.environ["STRATA_TOOL_NAME_ENUM"] = self._saved_enum
-+
-+    def test_an_undeclared_name_degrades_to_free_decoding(self):
-+        """T3b: with STRATA_TOOL_NAME_ENUM=1 a grammar problem (e.g. a name the regex cannot carry) must
-+        degrade the request to free decoding - the answer still comes back, never a 502."""
-+        os.environ["STRATA_TOOL_NAME_ENUM"] = "1"
++    def test_json_answer_with_tools_is_constrained_without_environment(self):
++        """A JSON answer remains constrained when tools are offered by the request."""
 +        code, r = self.chat_tools()
 +        self.assertEqual(code, 200, r)                       # the fallback in _with_constraint: no 502
 +        self.assertEqual(json.loads(r["choices"][0]["message"]["content"]), {"n": 7})
@@ -2130,45 +2139,67 @@ index 00000000..32e5291f
 +# ----------------------------------------------------------------- the bare tool call under the mask
 +@need
 +class ChatBareToolMask(Http):
-+    """T6 (plan §2 論点4, STRATA_TOOL_MASK=1 opt-in): bare tool calls - no response_format - are constrained:
-+    the tag can only arrive through the calls branch (the name sits behind the enum, the separator frees the
-+    turn), prose stays possible and a prose turn ends at the EOS like an unconstrained one."""
++    """Declared tools activate a persistent name guard without response_format or mask ENV.
++    Plain prose, Chat Completions, Responses and Anthropic tool turns remain supported."""
 +
 +
 +    def setUp(self):
 +        engine = MockEngine(self.tok, 'I checked it directly: 7', max_context=16384)
 +        engine.supports_mask = True
 +        self.start(engine)
-+        self._saved = {k: os.environ.get(k) for k in ("STRATA_TOOL_MASK", "STRATA_TOOL_NAME_ENUM")}
++        self._env_patch = patch.dict(os.environ,
++            {k: v for k, v in os.environ.items() if k not in
++             ("STRATA_TOOL_MASK", "STRATA_TOOL_NAME_ENUM", "STRATA_TOOL_MASK_STRICT")}, clear=True)
++        self._env_patch.start()
 +
 +    def tearDown(self):
 +        super().tearDown()
-+        for k, v in self._saved.items():
-+            if v is None:
-+                os.environ.pop(k, None)
-+            else:
-+                os.environ[k] = v
++        self._env_patch.stop()
 +
 +    def chat_tools(self, **kw):
 +        body = {"messages": [{"role": "user", "content": "run ls"}], "tools": TOOLS,
 +                "reasoning_effort": "none", **kw}
 +        return self.post("/v1/chat/completions", body)
 +
-+    def test_off_by_default(self):
++    def test_tools_are_constrained_by_default_without_environment(self):
 +        code, r = self.chat_tools()
 +        self.assertEqual(code, 200, r)
-+        self.assertIsNone(self.engine.last_sampling_constraint)   # the sampling carried no constraint key
++        self.assertIsInstance(self.engine.last_sampling_constraint, C.ToolNameConstraint)
++
++    def test_tool_choice_none_leaves_plain_text_unconstrained(self):
++        code, reply = self.chat_tools(tool_choice='none')
++        self.assertEqual(code, 200, reply)
++        self.assertEqual(reply['choices'][0]['message']['content'], 'I checked it directly: 7')
++        self.assertIsNone(self.engine.last_sampling_constraint)
++
++    def test_streamed_tool_call_is_constrained_without_environment(self):
++        self.engine.scripts = [self.tok.encode(CALL, parse_special=True) + self.tok.encode(IM_END, parse_special=True)]
++        self.engine.script, self.engine.turns = self.engine.scripts[0], 0
++        body = {'messages': [{'role': 'user', 'content': 'run ls'}], 'tools': TOOLS,
++                'reasoning_effort': 'none', 'stream': True}
++        req = urllib.request.Request(self.base + '/v1/chat/completions', data=json.dumps(body).encode(),
++                                     headers={'Content-Type': 'application/json'})
++        names = []
++        with urllib.request.urlopen(req, timeout=30) as response:
++            for line in response:
++                if not line.startswith(b'data:') or line.strip() == b'data: [DONE]':
++                    continue
++                event = json.loads(line[5:])
++                for choice in event.get('choices', []):
++                    for call in choice.get('delta', {}).get('tool_calls', []):
++                        if call.get('function', {}).get('name'):
++                            names.append(call['function']['name'])
++        self.assertEqual(names, ['exec_command'])
++        self.assertIsInstance(self.engine.last_sampling_constraint, C.ToolNameConstraint)
 +
 +    def test_prose_answer_turn_under_the_mask(self):
-+        """A prose turn (no call) ends at the EOS under the bare-call mask: masked=0 for prose text."""
-+        os.environ["STRATA_TOOL_MASK"] = "1"
++        """Tools offered by the request do not force a tool call or alter ordinary prose."""
 +        code, r = self.chat_tools()
 +        self.assertEqual(code, 200, r)
 +        self.assertEqual(r["choices"][0]["message"]["content"], "I checked it directly: 7")
 +
-+    def test_a_bare_tool_call_is_masked_and_the_enum_ignored_without_the_flag(self):
-+        """With STRATA_TOOL_MASK=1 alone (no STRATA_TOOL_NAME_ENUM), the tag feeds the free-REST branch."""
-+        os.environ["STRATA_TOOL_MASK"] = "1"
++    def test_a_bare_tool_call_is_masked_without_activation_flags(self):
++        """A valid tool call passes under the request-driven guard."""
 +        self.engine.scripts = [self.tok.encode(CALL, parse_special=True) + self.tok.encode(IM_END, parse_special=True)]
 +        self.engine.script, self.engine.turns = self.engine.scripts[0], 0
 +        code, r = self.chat_tools()
@@ -2177,22 +2208,21 @@ index 00000000..32e5291f
 +        self.assertEqual(r["choices"][0]["finish_reason"], "tool_calls")
 +        self.assertEqual([c["function"]["name"] for c in msg["tool_calls"]], ["exec_command"])
 +
-+    def test_the_enum_with_the_bare_mask_ends_at_the_separator(self):
-+        """STRATA_TOOL_MASK=1 + STRATA_TOOL_NAME_ENUM=1: the tag feeds the enum, the separator frees the
-+        turn (案1), and the call passes untouched - measured: finish_reason tool_calls, 200."""
-+        os.environ["STRATA_TOOL_MASK"] = "1"
-+        os.environ["STRATA_TOOL_NAME_ENUM"] = "1"
-+        self.engine.scripts = [self.tok.encode(CALL, parse_special=True) + self.tok.encode(IM_END, parse_special=True)]
++    def test_the_persistent_guard_allows_declared_call_after_prose(self):
++        """A prose prefix does not release the request's persistent name guard."""
++        self.engine.scripts = [self.tok.encode('I will use a tool.\n' + CALL, parse_special=True)
++                               + self.tok.encode(IM_END, parse_special=True)]
 +        self.engine.script, self.engine.turns = self.engine.scripts[0], 0
 +        code, r = self.chat_tools()
 +        self.assertEqual(code, 200, r)
 +        msg = r["choices"][0]["message"]
 +        self.assertEqual(r["choices"][0]["finish_reason"], "tool_calls")
 +        self.assertEqual([c["function"]["name"] for c in msg["tool_calls"]], ["exec_command"])
++        self.assertIn('I will use a tool.', msg.get('content') or '')
++        self.assertIsInstance(self.engine.last_sampling_constraint, C.ToolNameConstraint)
 +
 +    # --- the Responses route: bare tools, no text.format - the same shared generation loop
 +    def test_responses_bare_tool_call_under_the_mask(self):
-+        os.environ["STRATA_TOOL_MASK"] = "1"
 +        self.engine.scripts = [self.tok.encode(CALL, parse_special=True) + self.tok.encode(IM_END, parse_special=True)]
 +        self.engine.script, self.engine.turns = self.engine.scripts[0], 0
 +        body = {"model": "x", "input": [{"role": "user", "content": [{"type": "text", "text": "run ls"}]}],
@@ -2207,7 +2237,6 @@ index 00000000..32e5291f
 +
 +    # --- the Anthropic route: bare tools, no format - the sampling carries no response_format either
 +    def test_anthropic_bare_tool_call_under_the_mask(self):
-+        os.environ["STRATA_TOOL_MASK"] = "1"
 +        self.engine.scripts = [self.tok.encode(CALL, parse_special=True) + self.tok.encode(IM_END, parse_special=True)]
 +        self.engine.script, self.engine.turns = self.engine.scripts[0], 0
 +        body = {"model": "x", "max_tokens": 512, "stream": False,
@@ -2530,10 +2559,10 @@ index f0e2c74a..18714064 100644
      unittest.main()
 diff --git a/serve/test_tool_name_constraint.py b/serve/test_tool_name_constraint.py
 new file mode 100644
-index 00000000..065d76f5
+index 00000000..9b7736e2
 --- /dev/null
 +++ b/serve/test_tool_name_constraint.py
-@@ -0,0 +1,155 @@
+@@ -0,0 +1,228 @@
 +"""Names must stay constrained across prose, thinking, multiple calls and MTP windows."""
 +import base64
 +import os
@@ -2561,6 +2590,79 @@ index 00000000..065d76f5
 +        with patch.dict(os.environ, {'STRATA_TOOL_MASK': '1', 'STRATA_TOOL_NAME_ENUM': '1', 'STRATA_TOOL_MASK_STRICT': '1'}):
 +            sampling = app._with_constraint({}, tools, thinking=True)
 +        self.assertIsNotNone(sampling.get(C.KEY))
++
++    def app(self, supports_mask=True):
++        app = Service.__new__(Service)
++        app.engine = SimpleNamespace(supports_mask=supports_mask)
++        app.tok, app.stop_ids = self.tok, self.stop
++        return app
++
++    def test_tools_activate_name_guard_without_any_mask_environment(self):
++        tools = [{'name': 'sql_query', 'parameters': {'type': 'object'}}]
++        with patch.dict(os.environ, {}, clear=True):
++            sampling = self.app()._with_constraint({}, tools, thinking=False)
++        guard = sampling[C.KEY]
++        self.assertIsInstance(guard, C.ToolNameConstraint)
++        self.feed(guard, '<tool_call><function=')
++        self.assertTrue(C.Constraint.allowed(guard.mask(), ord('s')))
++        self.assertFalse(C.Constraint.allowed(guard.mask(), ord('m')))
++
++    def test_json_thinking_cut_is_preserved_by_request_driven_name_guard(self):
++        fmt = {'type': 'json_object'}
++        with patch.dict(os.environ, {}, clear=True):
++            sampling = self.app()._with_constraint({'response_format': fmt},
++                                                  [{'name': 'sql_query'}], thinking=True)
++        guard = sampling[C.KEY]
++        prefix = b'plan</think>'
++        reply = guard.reply(list(prefix + b' BAD')).split()
++        # The end-of-thinking marker must be the head's final token in this
++        # window. Bytes after it need a fresh, now-armed JSON mask.
++        self.assertEqual(reply[:2], ['MKN', str(len(prefix))])
++        for token in prefix:
++            self.assertTrue(C.Constraint.allowed(guard.mask(), token))
++            guard.feed(token)
++        self.assertTrue(guard.inner.armed)
++        self.assertTrue(C.Constraint.allowed(guard.mask(), ord('{')))
++        self.assertFalse(C.Constraint.allowed(guard.mask(), ord('B')))
++
++    def test_legacy_mask_switches_are_not_required_for_request_activation(self):
++        tools = [{'name': 'sql_query', 'parameters': {'type': 'object'}}]
++        with patch.dict(os.environ, {'STRATA_TOOL_MASK': '0', 'STRATA_TOOL_NAME_ENUM': '0'}, clear=True):
++            sampling = self.app()._with_constraint({}, tools, thinking=False)
++        self.assertIsInstance(sampling[C.KEY], C.ToolNameConstraint)
++
++    def test_explicit_strict_opt_out_preserves_requested_json_constraint(self):
++        fmt = {'type': 'json_schema', 'json_schema': {'name': 'result', 'schema': {
++            'type': 'object', 'properties': {'result': {'type': 'integer'}},
++            'required': ['result'], 'additionalProperties': False}}}
++        with patch.dict(os.environ, {'STRATA_TOOL_MASK_STRICT': '0'}, clear=True):
++            app = self.app()
++            sampling = app._with_constraint({'response_format': fmt},
++                                           [{'name': 'sql_query'}], thinking=False)
++            plain = {}
++            self.assertIs(app._with_constraint(plain, [{'name': 'sql_query'}], False), plain)
++        guard = sampling[C.KEY]
++        self.assertIsInstance(guard, C.Constraint)
++        self.assertNotIsInstance(guard, C.ToolNameConstraint)
++        for token in b'{"result":':
++            self.assertTrue(C.Constraint.allowed(guard.mask(), token))
++            guard.feed(token)
++        self.assertFalse(C.Constraint.allowed(guard.mask(), ord('"')))
++
++    def test_no_tools_or_json_leaves_plain_text_unchanged_without_environment(self):
++        sampling = {'temperature': 0.3}
++        with patch.dict(os.environ, {}, clear=True):
++            self.assertIs(self.app(False)._with_constraint(sampling, None, False), sampling)
++
++    def test_tools_fail_closed_without_environment_on_unsupported_engine(self):
++        with patch.dict(os.environ, {}, clear=True):
++            with self.assertRaisesRegex(ValueError, 'token-mask engine'):
++                self.app(False)._with_constraint({}, [{'name': 'sql_query'}], False)
++
++    def test_missing_mask_library_fails_closed_without_activation_environment(self):
++        with patch.dict(os.environ, {}, clear=True), patch.object(C, 'available', return_value=False):
++            with self.assertRaisesRegex(ValueError, 'llguidance'):
++                self.app()._with_constraint({}, [{'name': 'sql_query'}], False)
 +
 +    def guard(self):
 +        return C.ToolNameConstraint(self.vocab, ['sql_query', 'exec', 'exec_command'])
