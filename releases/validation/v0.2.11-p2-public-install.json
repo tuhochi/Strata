@@ -1,0 +1,21 @@
+{
+  "release": "v0.2.11-p2",
+  "source_commit": "9c048120e5863367285f0eb876c3cf1b2bd9586b",
+  "checked_utc": "2026-11-06T09:53:27.083872+00:00",
+  "installer_url": "https://github.com/tuhochi/Strata/releases/download/v0.2.11-p2/install-fork.sh",
+  "arguments": [
+    "--version",
+    "v0.2.11-p2"
+  ],
+  "fresh_prefix_with_spaces": true,
+  "public_download_and_signatures_verified": true,
+  "engine_full_file_hash_verification": true,
+  "product_version": "0.2.11-p2",
+  "component_version": "0.1.57.2",
+  "bundled_python": "3.12.15",
+  "source_identity_verified": true,
+  "engine_test_mode": "--version only; no installed model",
+  "owned_server_or_model_processes": 0,
+  "stable_channel": "not promoted; owner-managed macstudio API comparison pending",
+  "official_upstream_submission": "none"
+}
