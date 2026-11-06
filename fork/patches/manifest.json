@@ -21,6 +21,7 @@
     "tests/terminal/test_launch_dsv41.py",
     "tests/terminal/test_launch_tui.py",
     "tests/terminal/test_launch_tui_walk.py",
+    "tests/terminal/test_sycl_package.py",
     "docs/DETAILS.md",
     "include/strata/core/token_mask.hpp",
     "include/strata/core/verify.hpp",
@@ -45,5 +46,5 @@
     "metal/src/engine/window.cpp",
     "metal/CMakeLists.txt"
   ],
-  "sha256": "cefd677a67e1e425036524eed50f8d734832376595d4e3fd7d62885523bf4a83"
+  "sha256": "85b8c5a9778431dc9a6b3c33355da0266f1550ecdbd6a89af870981f4f0b7111"
 }
