@@ -1,0 +1,121 @@
+{
+  "release": "v0.2.11-p5",
+  "source_commit": "b24b86d02fee859d2a4942a22609ce53d8ac6232",
+  "public_installer_url": "https://raw.githubusercontent.com/tuhochi/Strata/v0.2.11-p5/fork/install.sh",
+  "downloaded_from_public_GitHub": true,
+  "fresh_prefix_with_spaces": true,
+  "namespace_guard_without_ENV": true,
+  "unknown_name_separator_blocked": true,
+  "product_and_build_versions_verified": true,
+  "isolated_registry_empty": true,
+  "model_or_service_start": "not performed; installer and CPU library probe only",
+  "tag_commit": "31804cc101c54e948681a52300b12453442c6522",
+  "release_url": "https://github.com/tuhochi/Strata/releases/tag/v0.2.11-p5",
+  "public_release_assets": [
+    {
+      "name": "BUILD-REPORT.json",
+      "bytes": 2420,
+      "sha256": "70632582a232bb46db4bf63d5e930568e2e85416376d8fbc1cfafa82debd142f",
+      "matches_committed_release": true
+    },
+    {
+      "name": "install-fork.sh",
+      "bytes": 3004,
+      "sha256": "bb573cf25f497c16bf7d9f6c54065c67bee1795b0f486921965b3fa2d11ef877",
+      "matches_committed_release": true
+    },
+    {
+      "name": "install-manifest.txt",
+      "bytes": 226,
+      "sha256": "8f04523f411419750e6dd55722dbf5fcf2ca1d5aa91a6f1de11097f6af9ea9c6",
+      "matches_committed_release": true
+    },
+    {
+      "name": "install.sh",
+      "bytes": 8775,
+      "sha256": "53a4ffe2774c4128e16b3a2713e3b08949405cc5d6e211c12e29f0ecdad1846b",
+      "matches_committed_release": true
+    },
+    {
+      "name": "INSTALLATION-VALIDATION.json",
+      "bytes": 1654,
+      "sha256": "6fa3462aeb6c8aa4f20e564b670db6bfc5fee703c95782e3665dcb39065889e7",
+      "matches_committed_release": true
+    },
+    {
+      "name": "REGRESSION-VALIDATION.json",
+      "bytes": 6751,
+      "sha256": "d3c8a41949bc7ad8008ac4d0785a75fe736f10158d02e8b7e9fb7f0f7cd85d91",
+      "matches_committed_release": true
+    },
+    {
+      "name": "RELEASE-NOTES.md",
+      "bytes": 2154,
+      "sha256": "79db7d389f36c72507f771fc124ad2a58e17995b44f9d6bb09bf13bd099bad33",
+      "matches_committed_release": true
+    },
+    {
+      "name": "SHA256SUMS",
+      "bytes": 1229,
+      "sha256": "275b64cecb0a0f916e2b51afcf3dc4c7f17c646ddf0e207a3902c740bc9cb17a",
+      "matches_committed_release": true
+    },
+    {
+      "name": "strata-control-0.1.57.5-macos-arm64.tar.gz",
+      "bytes": 54154842,
+      "sha256": "27ab07900c8bbde28bba11647211429316953201b1eaa22bef6df0f227866738",
+      "matches_committed_release": true
+    },
+    {
+      "name": "strata-engine-engine.tar.gz",
+      "bytes": 5370027,
+      "sha256": "7fe30c5806d3b354f95e9df67b896519210d6c878055fdc65ee36d992b1da483",
+      "matches_committed_release": true
+    },
+    {
+      "name": "strata-feed.json",
+      "bytes": 1278,
+      "sha256": "ba896e7d124e17c4e78848d262ea2f20773936fa6629203f62994e90c4f58ae6",
+      "matches_committed_release": true
+    },
+    {
+      "name": "strata-feed.json.sig",
+      "bytes": 150,
+      "sha256": "47f53c8be5067f137071739280f276b1bac89cd8c65cacb05aad0621ff71e38a",
+      "matches_committed_release": true
+    }
+  ],
+  "release_workflows": [
+    {
+      "name": "Portable monitor client",
+      "url": "https://github.com/tuhochi/Strata/actions/runs/42243995268",
+      "ref": "refs/heads/fork/v0.2.11-p5",
+      "result": "success"
+    },
+    {
+      "name": "Publish verified fork packages",
+      "url": "https://github.com/tuhochi/Strata/actions/runs/42243995133",
+      "ref": "refs/tags/v0.2.11-p5",
+      "result": "success"
+    },
+    {
+      "name": "Server regressions and minimal runtime",
+      "url": "https://github.com/tuhochi/Strata/actions/runs/42243995075",
+      "ref": "refs/tags/v0.2.11-p5",
+      "result": "success"
+    },
+    {
+      "name": "Portable monitor client",
+      "url": "https://github.com/tuhochi/Strata/actions/runs/42243994942",
+      "ref": "refs/tags/v0.2.11-p5",
+      "result": "success"
+    },
+    {
+      "name": "Server regressions and minimal runtime",
+      "url": "https://github.com/tuhochi/Strata/actions/runs/42243994926",
+      "ref": "refs/heads/fork/v0.2.11-p5",
+      "result": "success"
+    }
+  ],
+  "all_release_workflows_succeeded": true
+}
