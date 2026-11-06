@@ -1,0 +1,19 @@
+{
+ "version": "0.1.57.3",
+ "platform": "macos-arm64",
+ "backend": "metal",
+ "variant": "",
+ "archs": [
+  "apple-gpu"
+ ],
+ "min_driver": {},
+ "min_runtime": null,
+ "build_id": "b6687e44ce4a5f8a783c65ff459692a244a8dadc",
+ "format": "tar.gz",
+ "url": "https://raw.githubusercontent.com/tuhochi/Strata/v0.2.11-p3/releases/v0.2.11-p3/engine/strata-engine-engine.tar.gz",
+ "size": 5370042,
+ "sha256": "17e4f6d8af74212d2896a3f2b392901c9f2898b531e770741ce45c5d1af45b50",
+ "manifest_sha256": "b88efc1ee987bbc0c949a7182b4e11abff9d815606aaddbebf412ea4577c526c",
+ "installed_bytes": 14883529,
+ "notes": ""
+}

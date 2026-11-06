@@ -1,0 +1,70 @@
+{
+  "source_commit": "b6687e44ce4a5f8a783c65ff459692a244a8dadc",
+  "scope": "tools request enables supported Qwen name protection without activation ENV; JSON follows request format",
+  "defaults": {
+    "tools": "persistent name guard",
+    "response_format_or_text_format": "JSON constraint",
+    "no_tools_no_format": "plain text unchanged",
+    "tool_choice_none": "no tool guard"
+  },
+  "optional_override": "Only STRATA_TOOL_MASK_STRICT=0 disables extra name guard; JSON remains request-driven",
+  "removed_activation_flags": [
+    "STRATA_TOOL_MASK",
+    "STRATA_TOOL_NAME_ENUM"
+  ],
+  "red_green": {
+    "activation_before": {
+      "tests": 15,
+      "failures": 1,
+      "errors": 2
+    },
+    "thinking_boundary_before": {
+      "tests": 1,
+      "failures": 1
+    },
+    "relevant_regressions_after": {
+      "tests": 103,
+      "passed": 103
+    },
+    "HTTP_no_ENV_cases": 8
+  },
+  "package_contracts": {
+    "tests": 21,
+    "passed": 21,
+    "subtests_passed": 16
+  },
+  "focused_legacy_parser_compatibility": {
+    "mode": "STRATA_TOOL_MASK_STRICT=0",
+    "tests": 109,
+    "passed": 109
+  },
+  "full_legacy_compatibility": {
+    "mode": "STRATA_TOOL_MASK_STRICT=0; separate from default-protection tests",
+    "tests": 1522,
+    "passed": 1503,
+    "skipped": 14,
+    "failures": 2,
+    "errors": 3,
+    "failing_cases": [
+      "test_a_request_that_leaves_is_stopped_alone (serve.test_ds_parallel.Engine.test_a_request_that_leaves_is_stopped_alone)",
+      "test_requests_at_once_each_their_own_tokens (serve.test_ds_parallel.Engine.test_requests_at_once_each_their_own_tokens)",
+      "test_the_gen_line_carries_rid (serve.test_ds_parallel.Engine.test_the_gen_line_carries_rid)",
+      "test_chat_requests_run_at_once (serve.test_ds_parallel.Engine.test_chat_requests_run_at_once)",
+      "test_hip_ordinal (serve.test_server.GpuChoice.test_hip_ordinal)"
+    ],
+    "all_five_reproduced_on_unmodified_p2": true,
+    "p2_baseline_commit": "b732e753",
+    "baseline_rerun": {
+      "tests": 5,
+      "failures": 2,
+      "errors": 3
+    }
+  },
+  "signed_ARM_installation": {
+    "checks": 12,
+    "passed": 12,
+    "request_activation_without_mask_ENV": true
+  },
+  "hardware_model_validation": "pending owner-managed macstudio p3 install/start; no inference run on atlas",
+  "upstream_submission": "none"
+}

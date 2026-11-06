@@ -58,9 +58,18 @@ as proof of default automatic protection.
 The built ARM installer verification also clears all three variables and invokes
 the installed server constraint method with a 320-ID tokenizer. It checks both
 request-driven activation and the p2 JSON-mask-width regression without starting
-any model or HTTP server on atlas. Actual-model testing on the owner's macstudio
+any model or Strata API server on atlas. Actual-model testing on the owner's macstudio
 requires a separate manual p3 installation/start and is not implied by CPU tests.
 
 Original JSON/tool grammar contributions remain credited to ncphri (#3800,
 #4222). This activation/default policy and the persistent guard are additional
 fork changes. No official upstream PR or comment has been published.
+
+Executed validation: 103 targeted regressions, 21 package/version checks and 109
+focused legacy parser tests passed. The full legacy suite ran 1522 tests with
+1503 passes, 14 skips and five failures/errors. Those same five failures
+(DeepSeek fake-engine parallelism and HIP GPU ordering) were reproduced in an
+unmodified p2 checkout before publication; they are not reported as new p3
+regressions or hidden by a green full-suite claim. Signed ARM installation checks
+verify request-driven composition with all mask ENV absent. See the p3 release's
+REGRESSION-VALIDATION.json for counts and exact failing case names.
