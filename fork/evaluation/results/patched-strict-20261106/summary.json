@@ -1,0 +1,200 @@
+{
+  "groups": {
+    "control": {
+      "requests": 10,
+      "unknown_tool_failures": 0,
+      "raw_tool_markup": 0,
+      "invalid_arguments": 0,
+      "incomplete_or_error": 0,
+      "task_passed": 9
+    },
+    "holdout": {
+      "requests": 5,
+      "unknown_tool_failures": 0,
+      "raw_tool_markup": 0,
+      "invalid_arguments": 0,
+      "incomplete_or_error": 0,
+      "task_passed": 5
+    },
+    "performance": {
+      "requests": 30,
+      "unknown_tool_failures": 0,
+      "raw_tool_markup": 0,
+      "invalid_arguments": 0,
+      "incomplete_or_error": 0,
+      "task_passed": 0
+    },
+    "stress": {
+      "requests": 10,
+      "unknown_tool_failures": 0,
+      "raw_tool_markup": 0,
+      "invalid_arguments": 0,
+      "incomplete_or_error": 0,
+      "task_passed": 5
+    }
+  },
+  "performance": {
+    "perf-context": {
+      "requests": 10,
+      "completed": 10,
+      "task_passed": 0,
+      "seconds": {
+        "n": 10,
+        "median": 1.2726212620618753,
+        "p95": 1.2979596750810742,
+        "min": 1.2449338319711387,
+        "max": 1.2979596750810742
+      },
+      "ttft_seconds": {
+        "n": 10,
+        "median": 0.19088092155288905,
+        "p95": 0.22251058206893504,
+        "min": 0.17801664001308382,
+        "max": 0.22251058206893504
+      },
+      "decode_tokens_per_second": {
+        "n": 10,
+        "median": 70.65,
+        "p95": 71.1,
+        "min": 69.6,
+        "max": 71.1
+      },
+      "prompt_tokens": {
+        "n": 10,
+        "median": 1441.0,
+        "p95": 1441,
+        "min": 1441,
+        "max": 1441
+      },
+      "completion_tokens": {
+        "n": 10,
+        "median": 77.0,
+        "p95": 77,
+        "min": 77,
+        "max": 77
+      },
+      "cached_tokens": {
+        "n": 10,
+        "median": 1434.0,
+        "p95": 1434,
+        "min": 1434,
+        "max": 1434
+      },
+      "draft_acceptance": {
+        "n": 10,
+        "median": 0.9824561403508771,
+        "p95": 1.0,
+        "min": 0.9642857142857143,
+        "max": 1.0
+      }
+    },
+    "perf-text": {
+      "requests": 10,
+      "completed": 10,
+      "task_passed": 0,
+      "seconds": {
+        "n": 10,
+        "median": 0.9925768270040862,
+        "p95": 1.011595850926824,
+        "min": 0.9686545269796625,
+        "max": 1.011595850926824
+      },
+      "ttft_seconds": {
+        "n": 10,
+        "median": 0.19245568447513506,
+        "p95": 0.2225983339594677,
+        "min": 0.17463180795311928,
+        "max": 0.2225983339594677
+      },
+      "decode_tokens_per_second": {
+        "n": 10,
+        "median": 70.19999999999999,
+        "p95": 70.6,
+        "min": 68.8,
+        "max": 70.6
+      },
+      "prompt_tokens": {
+        "n": 10,
+        "median": 86.0,
+        "p95": 86,
+        "min": 86,
+        "max": 86
+      },
+      "completion_tokens": {
+        "n": 10,
+        "median": 57.0,
+        "p95": 57,
+        "min": 57,
+        "max": 57
+      },
+      "cached_tokens": {
+        "n": 10,
+        "median": 79.0,
+        "p95": 79,
+        "min": 79,
+        "max": 79
+      },
+      "draft_acceptance": {
+        "n": 10,
+        "median": 0.9761904761904762,
+        "p95": 1.0,
+        "min": 0.9512195121951219,
+        "max": 1.0
+      }
+    },
+    "perf-tool": {
+      "requests": 10,
+      "completed": 10,
+      "task_passed": 0,
+      "seconds": {
+        "n": 10,
+        "median": 0.6818905235268176,
+        "p95": 0.7113380659138784,
+        "min": 0.6718026440357789,
+        "max": 0.7113380659138784
+      },
+      "ttft_seconds": {
+        "n": 10,
+        "median": 0.3187578645301983,
+        "p95": 0.342274671071209,
+        "min": 0.31048892601393163,
+        "max": 0.342274671071209
+      },
+      "decode_tokens_per_second": {
+        "n": 10,
+        "median": 56.8,
+        "p95": 56.8,
+        "min": 55.6,
+        "max": 56.8
+      },
+      "prompt_tokens": {
+        "n": 10,
+        "median": 428.0,
+        "p95": 428,
+        "min": 428,
+        "max": 428
+      },
+      "completion_tokens": {
+        "n": 10,
+        "median": 29.0,
+        "p95": 29,
+        "min": 29,
+        "max": 29
+      },
+      "cached_tokens": {
+        "n": 10,
+        "median": 421.0,
+        "p95": 421,
+        "min": 421,
+        "max": 421
+      },
+      "draft_acceptance": {
+        "n": 10,
+        "median": 0.9375,
+        "p95": 0.9375,
+        "min": 0.9333333333333333,
+        "max": 0.9375
+      }
+    }
+  }
+}

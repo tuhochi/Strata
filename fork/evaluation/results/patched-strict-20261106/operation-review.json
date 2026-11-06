@@ -1,0 +1,155 @@
+{
+  "all_15_intended_operations_passed": true,
+  "cases": [
+    {
+      "case": "typo-01",
+      "tool": "sql_query",
+      "arguments": {
+        "query": "SELECT 1"
+      },
+      "exact_expected_arguments": true,
+      "intended_operation_passed": true,
+      "review_rule": "Exact JSON match, or the same SELECT integer literal with one optional trailing semicolon; no general SQL semantic equivalence claimed."
+    },
+    {
+      "case": "typo-02",
+      "tool": "sql_query",
+      "arguments": {
+        "query": "SELECT 2;"
+      },
+      "exact_expected_arguments": false,
+      "intended_operation_passed": true,
+      "review_rule": "Exact JSON match, or the same SELECT integer literal with one optional trailing semicolon; no general SQL semantic equivalence claimed."
+    },
+    {
+      "case": "typo-03",
+      "tool": "sql_query",
+      "arguments": {
+        "query": "SELECT 3"
+      },
+      "exact_expected_arguments": true,
+      "intended_operation_passed": true,
+      "review_rule": "Exact JSON match, or the same SELECT integer literal with one optional trailing semicolon; no general SQL semantic equivalence claimed."
+    },
+    {
+      "case": "typo-04",
+      "tool": "sql_query",
+      "arguments": {
+        "query": "SELECT 4"
+      },
+      "exact_expected_arguments": true,
+      "intended_operation_passed": true,
+      "review_rule": "Exact JSON match, or the same SELECT integer literal with one optional trailing semicolon; no general SQL semantic equivalence claimed."
+    },
+    {
+      "case": "typo-05",
+      "tool": "sql_query",
+      "arguments": {
+        "query": "SELECT 5;"
+      },
+      "exact_expected_arguments": false,
+      "intended_operation_passed": true,
+      "review_rule": "Exact JSON match, or the same SELECT integer literal with one optional trailing semicolon; no general SQL semantic equivalence claimed."
+    },
+    {
+      "case": "typo-06",
+      "tool": "sql_query",
+      "arguments": {
+        "query": "SELECT 6;"
+      },
+      "exact_expected_arguments": false,
+      "intended_operation_passed": true,
+      "review_rule": "Exact JSON match, or the same SELECT integer literal with one optional trailing semicolon; no general SQL semantic equivalence claimed."
+    },
+    {
+      "case": "typo-07",
+      "tool": "sql_query",
+      "arguments": {
+        "query": "SELECT 7;"
+      },
+      "exact_expected_arguments": false,
+      "intended_operation_passed": true,
+      "review_rule": "Exact JSON match, or the same SELECT integer literal with one optional trailing semicolon; no general SQL semantic equivalence claimed."
+    },
+    {
+      "case": "typo-08",
+      "tool": "sql_query",
+      "arguments": {
+        "query": "SELECT 8;"
+      },
+      "exact_expected_arguments": false,
+      "intended_operation_passed": true,
+      "review_rule": "Exact JSON match, or the same SELECT integer literal with one optional trailing semicolon; no general SQL semantic equivalence claimed."
+    },
+    {
+      "case": "typo-09",
+      "tool": "sql_query",
+      "arguments": {
+        "query": "SELECT 9"
+      },
+      "exact_expected_arguments": true,
+      "intended_operation_passed": true,
+      "review_rule": "Exact JSON match, or the same SELECT integer literal with one optional trailing semicolon; no general SQL semantic equivalence claimed."
+    },
+    {
+      "case": "typo-10",
+      "tool": "sql_query",
+      "arguments": {
+        "query": "SELECT 10"
+      },
+      "exact_expected_arguments": true,
+      "intended_operation_passed": true,
+      "review_rule": "Exact JSON match, or the same SELECT integer literal with one optional trailing semicolon; no general SQL semantic equivalence claimed."
+    },
+    {
+      "case": "holdout-01",
+      "tool": "read_file",
+      "arguments": {
+        "path": "notes.txt"
+      },
+      "exact_expected_arguments": true,
+      "intended_operation_passed": true,
+      "review_rule": "Exact JSON match, or the same SELECT integer literal with one optional trailing semicolon; no general SQL semantic equivalence claimed."
+    },
+    {
+      "case": "holdout-02",
+      "tool": "search_text",
+      "arguments": {
+        "query": "apple"
+      },
+      "exact_expected_arguments": true,
+      "intended_operation_passed": true,
+      "review_rule": "Exact JSON match, or the same SELECT integer literal with one optional trailing semicolon; no general SQL semantic equivalence claimed."
+    },
+    {
+      "case": "holdout-03",
+      "tool": "get_weather",
+      "arguments": {
+        "city": "Vienna"
+      },
+      "exact_expected_arguments": true,
+      "intended_operation_passed": true,
+      "review_rule": "Exact JSON match, or the same SELECT integer literal with one optional trailing semicolon; no general SQL semantic equivalence claimed."
+    },
+    {
+      "case": "holdout-04",
+      "tool": "sql_query",
+      "arguments": {
+        "query": "SELECT 1"
+      },
+      "exact_expected_arguments": true,
+      "intended_operation_passed": true,
+      "review_rule": "Exact JSON match, or the same SELECT integer literal with one optional trailing semicolon; no general SQL semantic equivalence claimed."
+    },
+    {
+      "case": "holdout-05",
+      "tool": "search_text",
+      "arguments": {
+        "query": "apple"
+      },
+      "exact_expected_arguments": true,
+      "intended_operation_passed": true,
+      "review_rule": "Exact JSON match, or the same SELECT integer literal with one optional trailing semicolon; no general SQL semantic equivalence claimed."
+    }
+  ]
+}

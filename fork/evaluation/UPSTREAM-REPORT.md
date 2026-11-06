@@ -36,12 +36,26 @@ Raw SSE events, full requests, metadata, warm-cache performance measurements,
 limitations and commands are in the adjacent `README.md` and `results/` folder.
 The baseline alone does not establish a speed or quality regression/improvement.
 
-**Patched comparison pending.** No positive result for the original PR is claimed.
-The published Mac fork includes additional Metal integration and guard changes;
-any future result from that fork must identify compiled source
-`47369b49ce38ccc330358a97ef3ff5ae1a2158f9` and remain separate from a direct test
-of original #4222 (`ed7f0d1eadbb79912af6aea82afad4e5ee8b443c`).
+**Completed fork comparison:** after enabling strict masking in the Python server,
+the identical frozen suite returned zero unknown names or raw call markup in
+10/10 targeted cases and 5/5 additional cases. Every case returned one declared,
+usable call with valid JSON arguments and the intended operation. Five targeted
+SQL cases differ only by an optional trailing semicolon; literal grading is kept
+separate from that explicit operation review.
 
-Before marking the proposal verified, run the same frozen workload and inspect
-valid calls, text leakage, API errors, arguments, controls and same-hardware
-performance. A refusal/error that merely avoids an unknown name is not a pass.
+All ten control answers and thirty measured performance answers remained exactly
+equal to the baseline in text/reasoning, calls/arguments and finish reason.
+Median warm-cache end-to-end changes ranged from −1.01% to +0.80%, with decode
+changes from −0.71% to −0.18%. Ten repeats per workload is a limited sample, not
+proof of universal performance equivalence. See `COMPARISON-20261106.md`.
+
+An initial fork run still failed because the mask environment variables reached
+only the native engine, not the Python server. That run, its earlier slower text
+measurements, the owner's configuration correction and an independent strict-gate
+diagnostic are all retained. Mask capability alone is not active policy.
+
+This passing result is for the published fork with additional Metal integration
+and guard changes, package provenance source
+`47369b49ce38ccc330358a97ef3ff5ae1a2158f9`. It must **not** be reported as a direct
+passing test of original #4222 (`ed7f0d1eadbb79912af6aea82afad4e5ee8b443c`).
+The original PR alone and other backends remain unverified here.

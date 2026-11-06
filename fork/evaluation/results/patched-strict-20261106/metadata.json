@@ -1,0 +1,104 @@
+{
+  "label": "patched-v0.2.11-p1-server-mask-enabled",
+  "started_utc": "2026-11-06T08:56:15.315764+00:00",
+  "suite_sha256": "78b002456c9da406d5cd169dca7d13720254e7bfaf287bdb7b6319fba58d329a",
+  "runner_sha256": "7faaf298aa9d87ea93fae20d4098013331037ddb618741114cac36970eff1a23",
+  "suite_note": "Deterministic narrow regression set; ten stress cases share one typo template and vary SQL literals. Not an estimate of production incidence. Holdout cases were not used to select that template.",
+  "model": "qwen3.8-flash-next-unsloth-ud-q4_k_xl",
+  "status_before": {
+    "service": "strata",
+    "model": "qwen3.8-flash-next-unsloth-ud-q4_k_xl",
+    "loaded": true,
+    "engine": "0.1.57.1-metal",
+    "structured_output": {
+      "formats": [
+        "json_object",
+        "json_schema"
+      ],
+      "method": "prompt_and_validate",
+      "constrained_decoding": true,
+      "tools_with_json": true,
+      "stream_buffered": true
+    },
+    "context": {
+      "native": 262144,
+      "max_positions": 262144
+    },
+    "concurrency": {
+      "serving": 1,
+      "requested": 1
+    },
+    "machine": {
+      "at": 1793955375,
+      "gpu": {
+        "name": "Apple M1 Ultra",
+        "used_mib": 1014.0,
+        "total_mib": 114688.0,
+        "util_pct": 0,
+        "temp_c": null,
+        "power_w": null
+      },
+      "ram": {
+        "used_gib": 29.6,
+        "total_gib": 128.0
+      }
+    },
+    "activity": {
+      "requests": 0,
+      "in_flight": 0,
+      "last_request_at": null
+    }
+  },
+  "sampling": "exact body per request; temperature 0, seed 123, reasoning none; serial; no logit bias",
+  "performance_repeats": 10,
+  "latency_scope": "client includes transport; server decode timing separately; TTFT includes content, reasoning or tool output, excludes empty role/progress events",
+  "configuration_attestation": "Owner confirmed on 2026-11-06: previous run put masking variables only in native engine config env; corrected start profile passes STRATA_TOOL_MASK, STRATA_TOOL_NAME_ENUM and STRATA_TOOL_MASK_STRICT to Python server environment before restart. Other effective launch parameters and file hashes not independently attested by API.",
+  "status_after": {
+    "service": "strata",
+    "model": "qwen3.8-flash-next-unsloth-ud-q4_k_xl",
+    "loaded": true,
+    "engine": "0.1.57.1-metal",
+    "structured_output": {
+      "formats": [
+        "json_object",
+        "json_schema"
+      ],
+      "method": "prompt_and_validate",
+      "constrained_decoding": true,
+      "tools_with_json": true,
+      "stream_buffered": true
+    },
+    "context": {
+      "native": 262144,
+      "max_positions": 262144
+    },
+    "concurrency": {
+      "serving": 1,
+      "requested": 1
+    },
+    "machine": {
+      "at": 1793955442,
+      "gpu": {
+        "name": "Apple M1 Ultra",
+        "used_mib": 86648.0,
+        "total_mib": 114688.0,
+        "util_pct": 96,
+        "temp_c": null,
+        "power_w": null
+      },
+      "ram": {
+        "used_gib": 107.9,
+        "total_gib": 128.0
+      }
+    },
+    "activity": {
+      "requests": 58,
+      "in_flight": 0,
+      "last_request_at": 1793955442
+    }
+  },
+  "finished_utc": "2026-11-06T08:57:22.316013+00:00",
+  "identity_stable": true,
+  "activity_delta": 58,
+  "measured_requests": 58
+}

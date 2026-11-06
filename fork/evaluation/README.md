@@ -13,13 +13,24 @@ Keep the tested implementations separate:
 | Installed unpatched Metal service | API reports `0.1.57-metal`; source hash not exposed | Baseline below, measured 2026-11-06 |
 | Original #4222 | `ed7f0d1eadbb79912af6aea82afad4e5ee8b443c` | Not directly tested on this Mac |
 | Original #3800 | `fc2c1ebb7fcc33465d7e2443165112339344b56d` | Not directly tested on this Mac |
-| Published fork `v0.2.11-p1` | Compiled source `47369b49ce38ccc330358a97ef3ff5ae1a2158f9` | Installer verified; this Mac model comparison pending |
+| Published fork `v0.2.11-p1` | Compiled source `47369b49ce38ccc330358a97ef3ff5ae1a2158f9` | Installer and this Mac frozen suite verified after server-mask activation; see completed comparison |
 
 The fork includes extra Metal sampling integration, gate fixes and a persistent
 Qwen XML name guard beyond those original PRs. A passing fork run must not be
 reported as proof that the original PR alone passed. Test the original commit
 separately before making that claim. No new upstream PR, issue or comment has
 been posted by this evaluation.
+
+## Completed patched comparison
+
+The corrected owner-managed fork launch passed the frozen name tests: **0/10**
+stress failures and **0/5** extra-case failures, compared with **10/10** and
+**3/5** originally. All normal control/performance answers were unchanged. Median
+warm-cache total times changed between −1.01% and +0.80%. An initial fork run
+with the Python masking flags missing failed like the baseline and is retained.
+See [COMPARISON-20261106.md](COMPARISON-20261106.md) for all three runs, activation
+diagnostics, performance limits and raw evidence. The original PR alone remains
+unverified; the passing run tests the published fork with its extra integration.
 
 ## What was actually observed
 
@@ -125,7 +136,9 @@ repetitions; the SQL workload adds a trailing semicolon. These are retained, not
 called patch regressions. Compare raw answers, token counts and normal controls.
 A faster answer with less output is not evidence of a faster implementation.
 
-We cannot yet claim unchanged performance or quality. Proposed acceptance:
+The completed comparison found unchanged control/performance output and no relevant
+warm-cache slowdown in this sample. It does not prove universal performance or
+quality equivalence. The predeclared initial acceptance criteria were:
 
 - Zero undeclared names and no raw tool markup in the stress and extra cases.
   A 4xx/5xx error, silent refusal or empty answer is not a successful tool call.

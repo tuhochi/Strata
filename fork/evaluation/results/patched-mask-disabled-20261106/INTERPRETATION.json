@@ -1,0 +1,7 @@
+{
+  "classification": "masking not enabled in Python server; not a valid active-patch evaluation",
+  "confirmed_by": "owner follow-up on 2026-11-06",
+  "owner_explanation": "Masking environment variables were set in native engine config env only. Python server reads its own environment and had not received them. Owner corrected start profile and restarted service.",
+  "observation": "API reports new Metal engine and constrained-decoding capability, but tool-name masking was inactive. Stress 10/10 and additional variants 3/5 still failed.",
+  "performance_scope": "These figures describe the mask-disabled installation; they do not measure enabled-mask overhead."
+}

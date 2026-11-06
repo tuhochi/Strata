@@ -1,0 +1,68 @@
+{
+  "case": "strict_guard_invalid_identifier",
+  "request": {
+    "model": "qwen3.8-flash-next-unsloth-ud-q4_k_xl",
+    "max_tokens": 8,
+    "temperature": 0,
+    "reasoning_effort": "none",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Reply only OK. Do not call any tools."
+      }
+    ],
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "diagnostic.invalid",
+          "description": "Unused synthetic diagnostic tool.",
+          "parameters": {
+            "type": "object",
+            "properties": {}
+          }
+        }
+      }
+    ]
+  },
+  "http_status": 200,
+  "response": {
+    "id": "chatcmpl-7b676925c4fe41fa923268ac",
+    "object": "chat.completion",
+    "created": 1793955250,
+    "model": "qwen3.8-flash-next-unsloth-ud-q4_k_xl",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "I am ready to assist you. Please"
+        },
+        "finish_reason": "length"
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 255,
+      "completion_tokens": 8,
+      "total_tokens": 263,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      }
+    },
+    "timings": {
+      "cache_n": 0,
+      "prompt_n": 255,
+      "prompt_ms": 1739.8,
+      "prompt_per_token_ms": 6.823,
+      "prompt_per_second": 146.6,
+      "predicted_n": 8,
+      "predicted_ms": 205.3,
+      "predicted_per_token_ms": 25.663,
+      "predicted_per_second": 39.0,
+      "draft_n": 5,
+      "draft_n_accepted": 3
+    }
+  },
+  "seconds": 2.020998660940677,
+  "purpose": "Local source strict gate rejects a declared name containing a dot before inference; this probes behavior, not process environment."
+}
