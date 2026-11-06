@@ -1,0 +1,24 @@
+{
+  "release": "v0.2.11-p3",
+  "source_commit": "b6687e44ce4a5f8a783c65ff459692a244a8dadc",
+  "checked_utc": "2026-11-06T10:33:44.508306+00:00",
+  "installer_executed_from": "https://raw.githubusercontent.com/tuhochi/Strata/v0.2.11-p3/fork/install.sh",
+  "equivalent_release_installer": "https://github.com/tuhochi/Strata/releases/download/v0.2.11-p3/install-fork.sh",
+  "release_asset_matches_executed_script": true,
+  "installer_sha256": "bb573cf25f497c16bf7d9f6c54065c67bee1795b0f486921965b3fa2d11ef877",
+  "arguments": [
+    "--version",
+    "v0.2.11-p3"
+  ],
+  "fresh_prefix_with_spaces": true,
+  "feed_signature_and_engine_hashes_verified": true,
+  "product_version": "0.2.11-p3",
+  "component_version": "0.1.57.3",
+  "bundled_python": "3.12.15",
+  "source_identity_verified": true,
+  "wrapper_exports_mask_ENV": false,
+  "engine_test_mode": "--version only, no model installed",
+  "owned_server_or_model_processes": 0,
+  "stable_channel": "not promoted; owner-managed p3 API comparison pending",
+  "upstream_submission": "none"
+}
