@@ -13,6 +13,7 @@ from strata_control import feed as feedmod, updater
 from tests.terminal import test_updater
 
 ROOT = Path(__file__).resolve().parents[2]
+FORK_PRODUCT_VERSION = json.loads((ROOT / "fork/release.json").read_text())["release"][1:]
 
 
 def first(path, pattern):
@@ -29,7 +30,7 @@ class VersionBump(unittest.TestCase):
         # 0.2.8: Terminal and app are 0.2.8; Control and every engine package (Qwen, DeepSeek, Metal, SYCL, aarch64) are 0.1.54 (both engines changed since 0.2.7.1).
         # 0.2.7.1 (DGX Spark): Control and the linux-aarch64 engine packages are 0.1.53 (the CMake project version); the app and the Terminal stay 0.2.7, the Metal engine 0.1.52.
         # 0.2.7: Terminal and app are 0.2.7; Control and every engine package (Qwen, DeepSeek, Metal) are 0.1.52 (the CMake project version; the Qwen and DeepSeek C++ both changed since 0.2.6)
-        self.assertEqual(strata_cli.PRODUCT_VERSION, "0.2.11-p1")
+        self.assertEqual(strata_cli.PRODUCT_VERSION, FORK_PRODUCT_VERSION)
         self.assertEqual(strata_cli.version(), "0.1.57")                # the CMake project version
         self.assertEqual(first("CMakeLists.txt", r"^project\(strata VERSION ([0-9.]+) "), "0.1.57")
         self.assertIn('STRATA_VERSION="${STRATA_FORK_ENGINE_VERSION}-metal"', (ROOT / "metal" / "CMakeLists.txt").read_text(encoding="utf-8"))
@@ -54,7 +55,7 @@ class VersionBump(unittest.TestCase):
     def test_version_prints_the_product_and_the_build(self):
         done = subprocess.run([sys.executable, str(ROOT / "strata.py"), "--version"], capture_output=True, text=True, cwd=str(ROOT),
                               env={**os.environ, "STRATA_NO_HANDOVER": "1"})
-        self.assertTrue(done.stdout.startswith("strata 0.2.11-p1 (build 0.1.57;"), done.stdout)
+        self.assertTrue(done.stdout.startswith(f"strata {FORK_PRODUCT_VERSION} (build 0.1.57;"), done.stdout)
 
 
 class UpdateFromTheLastRelease(test_updater.UpdaterCase):

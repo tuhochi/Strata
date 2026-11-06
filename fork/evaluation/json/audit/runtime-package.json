@@ -1,0 +1,23 @@
+{
+  "release": "v0.2.11-p1",
+  "control_archive_sha256": "9c07ae7dbf84e36f10256926d1e4961da906da6b96e03897ec7879292a610f47",
+  "archive_jsonschema_members": 0,
+  "archive_referencing_members": 0,
+  "archive_llguidance_members": 22,
+  "installed_private_runtime_probe": {
+    "llguidance": "1.9.1",
+    "jsonschema_available": false,
+    "referencing_available": false
+  },
+  "execution": "isolated installed package Python dependency lookup only; no model or server",
+  "original_pr_cpu_tests": {
+    "3800": {
+      "tests": 35,
+      "passed": 35
+    },
+    "4222": {
+      "tests": 66,
+      "passed": 66
+    }
+  }
+}

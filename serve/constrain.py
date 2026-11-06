@@ -651,13 +651,17 @@ class ToolNameConstraint:
                 self.cache.popitem(last=False)
         return result
 
-    @staticmethod
-    def _intersect(a, b):
+    def _intersect(self, a, b):
         if b is None:
             return a
-        if len(a) != len(b):
+        # The engine samples only IDs [0, vocab.n). llguidance 1.9.1 can
+        # return an extra uint32 beyond that range at a word boundary.
+        # Keep our canonical width and intersect every real token bit;
+        # _bits already clears the final word's out-of-vocabulary bits.
+        size = 4 * ((self.vocab.n + 31) // 32)
+        if len(a) != size or len(b) < size or len(b) % 4:
             raise ValueError('tool-name mask vocabulary width differs from schema mask')
-        return bytes(x & y for x, y in zip(a, b))
+        return bytes(x & y for x, y in zip(a, b[:size]))
 
     def mask(self):
         return self._intersect(self._bits(self.state), self.inner.mask() if self.inner else None)

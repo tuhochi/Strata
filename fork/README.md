@@ -100,3 +100,5 @@ partial improvement, with a remaining array length/uniqueness violation and
 mask-width errors for automatic tools plus a JSON schema and for final JSON after
 a tool result. The successful tool-name tests do not establish full JSON Schema
 or JSON-with-tools correctness.
+
+Patch revision p2 corrects the name/schema mask-width composition, with a failing-then-passing real-llguidance regression test. See the [source audit](evaluation/json/AUDIT-20261106.md). It does not add uniqueItems support; its Mac API comparison must be recorded separately from p1.

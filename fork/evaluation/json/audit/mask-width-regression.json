@@ -1,0 +1,23 @@
+{
+  "baseline_runtime_sources": "bd9b2c9f",
+  "scope": "Mask-width composition, no model/server",
+  "suite": "serve.test_tool_name_constraint",
+  "before": {
+    "tests": 10,
+    "errors": 3,
+    "message": "tool-name mask vocabulary width differs from schema mask"
+  },
+  "after": {
+    "tests": 10,
+    "errors": 0
+  },
+  "additional_regressions": {
+    "tests": 94,
+    "passed": 94
+  },
+  "not_fixed_here": [
+    "uniqueItems grammar support",
+    "full schema post-validation when jsonschema is absent"
+  ],
+  "hardware_validation": "pending owner-managed p2 installation"
+}

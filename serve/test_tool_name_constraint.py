@@ -34,6 +34,69 @@ class ToolNameConstraintTests(unittest.TestCase):
             self.assertTrue(C.Constraint.allowed(guard.mask(), t), (text, t))
             guard.feed(t)
 
+    def json_guard(self, size):
+        class PaddedTokenizer(ByteTokenizer):
+            n_vocab = size
+            types = [1] * 256 + [3] * 6 + [0] * (size - 262)
+
+            def token_bytes(self, token):
+                if token < 256:
+                    return bytes([token])
+                return self.SPECIALS[token - 256].encode() if token < 262 else b''
+
+        tok = PaddedTokenizer()
+        vocab = C.Vocab(tok, self.stop)
+        fmt = {'type': 'json_schema', 'json_schema': {'name': 'result', 'schema': {
+            'type': 'object', 'properties': {'result': {'type': 'integer'}},
+            'required': ['result'], 'additionalProperties': False}}}
+        inner = C.Constraint(vocab, C.grammar(fmt, True, vocab), armed=True)
+        return C.ToolNameConstraint(vocab, ['sql_query'], inner=inner)
+
+    def test_json_schema_composition_handles_word_aligned_vocabularies(self):
+        # llguidance 1.9.1 returns an extra uint32 at exact 32-token boundaries.
+        # The old byte tokenizer (262 tokens) never exercised that boundary.
+        for size in [287, 288, 289, 319, 320, 321]:
+            with self.subTest(vocab_tokens=size):
+                guard = self.json_guard(size)
+                name_bits = guard._bits(guard.state)
+                schema_bits = guard.inner.mask()
+                composed = guard.mask()
+                self.assertEqual(len(composed), 4 * ((size + 31) // 32))
+                for token in range(size):
+                    self.assertEqual(bool(C.Constraint.allowed(composed, token)),
+                                     bool(C.Constraint.allowed(name_bits, token) and
+                                          C.Constraint.allowed(schema_bits, token)))
+                self.assertTrue(C.Constraint.allowed(composed, ord('{')))
+                self.assertFalse(C.Constraint.allowed(composed, ord('x')))
+                for token in range(size, len(composed) * 8):
+                    self.assertFalse(C.Constraint.allowed(composed, token))
+
+    def test_json_schema_composition_lookahead_keeps_live_state_and_schema(self):
+        guard = self.json_guard(320)
+        before = guard.mask()
+        drafts = list(b'{"re')
+        reply = guard.reply(drafts).split()
+        self.assertEqual(reply[:2], ['MKN', '5'])
+        rows = [base64.b64decode(row) for row in reply[2:]]
+        self.assertEqual(len(rows), 5)
+        self.assertTrue(all(len(row) == 40 for row in rows))
+        self.assertTrue(C.Constraint.allowed(rows[-1], ord('s')))
+        self.assertFalse(C.Constraint.allowed(rows[-1], ord('x')))
+        self.assertEqual(guard.mask(), before)
+        # Commit the verified prefix; the real EOS must still be allowed at the end.
+        for token in b'{"result":42}':
+            self.assertTrue(C.Constraint.allowed(guard.mask(), token))
+            guard.feed(token)
+        self.assertTrue(any(C.Constraint.allowed(guard.mask(), token) for token in self.stop))
+
+    def test_schema_composition_rejects_truncated_or_unaligned_bitsets(self):
+        guard = self.json_guard(320)
+        for bits in [b'\xff' * 36, b'\xff' * 41]:
+            with self.subTest(bytes=len(bits)):
+                guard.inner = SimpleNamespace(mask=lambda: bits)
+                with self.assertRaises(ValueError):
+                    guard.mask()
+
     def test_wrong_prefix_is_masked_after_prose_and_inside_thinking(self):
         for lead in ['', 'Ich prüfe das.\n', '<think>Plan: ', '<tool_call>\n']:
             with self.subTest(lead=lead):

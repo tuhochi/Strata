@@ -1,0 +1,67 @@
+{
+  "source_commit": "fc2c1ebb7fcc33465d7e2443165112339344b56d",
+  "llguidance_version": "1.9.1",
+  "execution": "CPU library and service-method calls only; no model or HTTP server",
+  "uniqueItems_compilation": {
+    "accepted": false,
+    "error": "grammar: at 4(7): failed to compile JSON schema: Unimplemented keys: [\"uniqueItems\"]\n   2 | WS: /[ \\t\\r\\n]+/\n   3 | answer: json\n   4 | json: %json {\"type\": \"object\", \"properties\": {\"values\": {\"type\": \"array\", \"items\": {\"type\": \"integer\"}, \"minItems\": 3, \"maxItems\": 3, \"uniqueItems\": true}}, \"required\": [\"values\"], \"additionalProperties\": false}\n             ^\n"
+  },
+  "unsupported_schema_server_gate": {
+    "constraint_present": false,
+    "log": "[strata] constrained decoding off for a request: grammar: at 4(7): failed to compile JSON schema: Unimplemented keys: [\"uniqueItems\"]"
+  },
+  "supported_minItems_control": {
+    "early_closing_bracket_allowed": false
+  },
+  "without_postvalidator_dependency": {
+    "schema_invalid_object_accepted": true,
+    "returned": "{\"values\":[1,1]}"
+  },
+  "with_postvalidator_dependency": {
+    "schema_invalid_object_rejected": true,
+    "error": "model output failed the JSON Schema at /values: [1, 1] is too short"
+  },
+  "fork_guard_present": false,
+  "mask_widths": [
+    {
+      "vocab_tokens": 262,
+      "schema_mask_bytes": 36,
+      "rounded_vocab_bytes": 36
+    },
+    {
+      "vocab_tokens": 287,
+      "schema_mask_bytes": 36,
+      "rounded_vocab_bytes": 36
+    },
+    {
+      "vocab_tokens": 288,
+      "schema_mask_bytes": 40,
+      "rounded_vocab_bytes": 36
+    },
+    {
+      "vocab_tokens": 289,
+      "schema_mask_bytes": 40,
+      "rounded_vocab_bytes": 40
+    },
+    {
+      "vocab_tokens": 319,
+      "schema_mask_bytes": 40,
+      "rounded_vocab_bytes": 40
+    },
+    {
+      "vocab_tokens": 320,
+      "schema_mask_bytes": 44,
+      "rounded_vocab_bytes": 40
+    },
+    {
+      "vocab_tokens": 321,
+      "schema_mask_bytes": 44,
+      "rounded_vocab_bytes": 44
+    },
+    {
+      "vocab_tokens": 352,
+      "schema_mask_bytes": 48,
+      "rounded_vocab_bytes": 44
+    }
+  ]
+}

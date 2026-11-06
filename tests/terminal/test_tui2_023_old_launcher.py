@@ -1,6 +1,7 @@
 """0.2.3 RC stress test, #4 (H03): a Terminal that cannot hand over to a newer Control is told so instead of being told "updated"."""
 
 import os
+import json
 import shutil
 import subprocess
 import sys
@@ -11,6 +12,7 @@ from pathlib import Path
 from strata_cli import handover
 
 ROOT = Path(__file__).resolve().parents[2]
+FORK_PRODUCT_VERSION = json.loads((ROOT / "fork/release.json").read_text())["release"][1:]
 
 
 class OldLauncherIsToldTheTruth(unittest.TestCase):
@@ -42,7 +44,7 @@ class OldLauncherIsToldTheTruth(unittest.TestCase):
         for env in ({"STRATA_NO_ACQUIRE": "1", "STRATA_HANDOVER": "1"}, {}):
             done = self.run_version(tree, **env)
             self.assertEqual(done.returncode, 0, done.stderr)
-            self.assertTrue(done.stdout.startswith("strata 0.2.11-p1 (build "), done.stdout)
+            self.assertTrue(done.stdout.startswith(f"strata {FORK_PRODUCT_VERSION} (build "), done.stdout)
         elsewhere = self.staged_tree(parent="terminal")                       # not the updater's staging folder
         self.assertEqual(self.run_version(elsewhere, STRATA_NO_ACQUIRE="1").returncode, 0)
 
