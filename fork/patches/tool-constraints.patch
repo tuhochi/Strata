@@ -3572,3 +3572,36 @@ index ce423c8f..f4c488d8 100644
          self.assertEqual(code, 0, err)
          self.assertIn("read from the SSD", out)
          self.assertIn("free disk space", out)
+diff --git a/tests/terminal/test_launch_tui.py b/tests/terminal/test_launch_tui.py
+index e0a299bd..76371114 100644
+--- a/tests/terminal/test_launch_tui.py
++++ b/tests/terminal/test_launch_tui.py
+@@ -96,6 +96,12 @@ class Base(unittest.TestCase):
+         p = mock.patch.object(access, "lan_ips", return_value=["192.168.1.5"])
+         p.start()
+         self.addCleanup(p.stop)
++        # Screen tests use simulated networking; never query this runner's helpers.
++        for p in (mock.patch.object(access, "find_cloudflared", return_value=None),
++                  mock.patch.object(access, "tailscale_status", return_value={
++                      "installed": False, "running": False, "ip": None, "name": None})):
++            p.start()
++            self.addCleanup(p.stop)
+ 
+     def run_app(self, coro, ctx=None, auto_run=False):
+         ctx = ctx or make_ctx()
+diff --git a/tests/terminal/test_launch_tui_walk.py b/tests/terminal/test_launch_tui_walk.py
+index fa8eab9e..582070af 100644
+--- a/tests/terminal/test_launch_tui_walk.py
++++ b/tests/terminal/test_launch_tui_walk.py
+@@ -54,7 +54,10 @@ class Walk(unittest.TestCase):
+         FakeRunner.behaviour = "ok"
+         FakeRunner.download = 0.0
+         for p in (mock.patch("strata_cli.launch.app.Runner", FakeRunner),
+-                  mock.patch.object(access, "lan_ips", return_value=["192.168.1.5"])):
++                  mock.patch.object(access, "lan_ips", return_value=["192.168.1.5"]),
++                  mock.patch.object(access, "find_cloudflared", return_value=None),
++                  mock.patch.object(access, "tailscale_status", return_value={
++                      "installed": False, "running": False, "ip": None, "name": None})):
+             p.start()
+             self.addCleanup(p.stop)
+ 
