@@ -1,0 +1,102 @@
+{
+  "label": "unpatched-0.2.11",
+  "started_utc": "2026-11-06T08:31:34.013155+00:00",
+  "suite_sha256": "78b002456c9da406d5cd169dca7d13720254e7bfaf287bdb7b6319fba58d329a",
+  "runner_sha256": "7faaf298aa9d87ea93fae20d4098013331037ddb618741114cac36970eff1a23",
+  "suite_note": "Deterministic narrow regression set; ten stress cases share one typo template and vary SQL literals. Not an estimate of production incidence. Holdout cases were not used to select that template.",
+  "model": "qwen3.8-flash-next-unsloth-ud-q4_k_xl",
+  "status_before": {
+    "service": "strata",
+    "model": "qwen3.8-flash-next-unsloth-ud-q4_k_xl",
+    "loaded": true,
+    "engine": "0.1.57-metal",
+    "structured_output": {
+      "formats": [
+        "json_object",
+        "json_schema"
+      ],
+      "method": "prompt_and_validate",
+      "constrained_decoding": false,
+      "stream_buffered": true
+    },
+    "context": {
+      "native": 262144,
+      "max_positions": 262144
+    },
+    "concurrency": {
+      "serving": 1,
+      "requested": 1
+    },
+    "machine": {
+      "at": 1793953894,
+      "gpu": {
+        "name": "Apple M1 Ultra",
+        "used_mib": 26.0,
+        "total_mib": 110100.0,
+        "util_pct": 0,
+        "temp_c": null,
+        "power_w": null
+      },
+      "ram": {
+        "used_gib": 39.1,
+        "total_gib": 128.0
+      }
+    },
+    "activity": {
+      "requests": 6,
+      "in_flight": 0,
+      "last_request_at": 1793953695
+    }
+  },
+  "sampling": "exact body per request; temperature 0, seed 123, reasoning none; serial; no logit bias",
+  "performance_repeats": 10,
+  "latency_scope": "client includes transport; server decode timing separately; TTFT includes content, reasoning or tool output, excludes empty role/progress events",
+  "configuration_attestation": "Owner must confirm identical model files, tokenizer, launch flags, MTP, server source and hardware for a causal comparison.",
+  "status_after": {
+    "service": "strata",
+    "model": "qwen3.8-flash-next-unsloth-ud-q4_k_xl",
+    "loaded": true,
+    "engine": "0.1.57-metal",
+    "structured_output": {
+      "formats": [
+        "json_object",
+        "json_schema"
+      ],
+      "method": "prompt_and_validate",
+      "constrained_decoding": false,
+      "stream_buffered": true
+    },
+    "context": {
+      "native": 262144,
+      "max_positions": 262144
+    },
+    "concurrency": {
+      "serving": 1,
+      "requested": 1
+    },
+    "machine": {
+      "at": 1793953958,
+      "gpu": {
+        "name": "Apple M1 Ultra",
+        "used_mib": 85649.0,
+        "total_mib": 110100.0,
+        "util_pct": 96,
+        "temp_c": null,
+        "power_w": null
+      },
+      "ram": {
+        "used_gib": 108.4,
+        "total_gib": 128.0
+      }
+    },
+    "activity": {
+      "requests": 64,
+      "in_flight": 0,
+      "last_request_at": 1793953958
+    }
+  },
+  "finished_utc": "2026-11-06T08:32:38.317166+00:00",
+  "identity_stable": true,
+  "activity_delta": 58,
+  "measured_requests": 58
+}

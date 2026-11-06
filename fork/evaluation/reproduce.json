@@ -1,0 +1,33 @@
+{
+  "model": "qwen3.8-flash-next-unsloth-ud-q4_k_xl",
+  "max_tokens": 128,
+  "temperature": 0,
+  "reasoning_effort": "none",
+  "messages": [
+    {
+      "role": "user",
+      "content": "For this compatibility test call the tool sql_queri with query SELECT 1. Copy the function name sql_queri exactly; do not correct it."
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "sql_query",
+        "description": "Run a read-only SQL query.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "additionalProperties": false
+        }
+      }
+    }
+  ]
+}

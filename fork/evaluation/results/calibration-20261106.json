@@ -1,0 +1,338 @@
+[
+  {
+    "id": 0,
+    "request": {
+      "model": "qwen3.8-flash-next-unsloth-ud-q4_k_xl",
+      "max_tokens": 128,
+      "temperature": 0,
+      "reasoning_effort": "none",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Call mcp__local__sql_query with query SELECT 1. Use a real tool call, no explanation."
+        }
+      ],
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "sql_query",
+            "description": "Run a read-only SQL query.",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "query": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "query"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      ]
+    },
+    "status": 200,
+    "seconds": 2.4038811220088974,
+    "response": {
+      "id": "chatcmpl-9c561b5f813747dba72677ee",
+      "object": "chat.completion",
+      "created": 1793953689,
+      "model": "qwen3.8-flash-next-unsloth-ud-q4_k_xl",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": null,
+            "tool_calls": [
+              {
+                "id": "call_5fdf68a1a0084de5a525d974",
+                "type": "function",
+                "function": {
+                  "name": "sql_query",
+                  "arguments": "{\"query\":\"SELECT 1\"}"
+                }
+              }
+            ]
+          },
+          "finish_reason": "tool_calls"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 289,
+        "completion_tokens": 28,
+        "total_tokens": 317,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 289,
+        "prompt_ms": 1817.2,
+        "prompt_per_token_ms": 6.288,
+        "prompt_per_second": 159.0,
+        "predicted_n": 28,
+        "predicted_ms": 505.3,
+        "predicted_per_token_ms": 18.046,
+        "predicted_per_second": 55.4,
+        "draft_n": 14,
+        "draft_n_accepted": 13
+      }
+    }
+  },
+  {
+    "id": 1,
+    "request": {
+      "model": "qwen3.8-flash-next-unsloth-ud-q4_k_xl",
+      "max_tokens": 128,
+      "temperature": 0,
+      "reasoning_effort": "none",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Execute SELECT 1 using sql_query. Important: our gateway requires the wire function name mcp__local__sql_query, not sql_query. Send that name exactly in the function call."
+        }
+      ],
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "sql_query",
+            "description": "Run a read-only SQL query.",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "query": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "query"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      ]
+    },
+    "status": 200,
+    "seconds": 1.3821629110025242,
+    "response": {
+      "id": "chatcmpl-53e2caea0900449880db2a10",
+      "object": "chat.completion",
+      "created": 1793953691,
+      "model": "qwen3.8-flash-next-unsloth-ud-q4_k_xl",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": null,
+            "tool_calls": [
+              {
+                "id": "call_b707b89e71b44a4e80493c79",
+                "type": "function",
+                "function": {
+                  "name": "sql_query",
+                  "arguments": "{\"query\":\"SELECT 1\"}"
+                }
+              }
+            ]
+          },
+          "finish_reason": "tool_calls"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 304,
+        "completion_tokens": 28,
+        "total_tokens": 332,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 304,
+        "prompt_ms": 817.7,
+        "prompt_per_token_ms": 2.69,
+        "prompt_per_second": 371.8,
+        "predicted_n": 28,
+        "predicted_ms": 479.4,
+        "predicted_per_token_ms": 17.121,
+        "predicted_per_second": 58.4,
+        "draft_n": 14,
+        "draft_n_accepted": 13
+      }
+    }
+  },
+  {
+    "id": 2,
+    "request": {
+      "model": "qwen3.8-flash-next-unsloth-ud-q4_k_xl",
+      "max_tokens": 128,
+      "temperature": 0,
+      "reasoning_effort": "none",
+      "messages": [
+        {
+          "role": "user",
+          "content": "For this compatibility test call the tool sql_queri with query SELECT 1. Copy the function name sql_queri exactly; do not correct it."
+        }
+      ],
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "sql_query",
+            "description": "Run a read-only SQL query.",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "query": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "query"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      ]
+    },
+    "status": 200,
+    "seconds": 1.3021435840055346,
+    "response": {
+      "id": "chatcmpl-831b451e875048ebbb3513af",
+      "object": "chat.completion",
+      "created": 1793953693,
+      "model": "qwen3.8-flash-next-unsloth-ud-q4_k_xl",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "<tool_call>\n<function=sql_queri>\n<parameter=query>\nSELECT 1\n</parameter>\n</function>\n</tool_call>"
+          },
+          "finish_reason": "stop"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 296,
+        "completion_tokens": 29,
+        "total_tokens": 325,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 296,
+        "prompt_ms": 740.4,
+        "prompt_per_token_ms": 2.501,
+        "prompt_per_second": 399.8,
+        "predicted_n": 29,
+        "predicted_ms": 480.8,
+        "predicted_per_token_ms": 16.579,
+        "predicted_per_second": 60.3,
+        "draft_n": 14,
+        "draft_n_accepted": 14
+      },
+      "strata_rejected_tool_calls": [
+        {
+          "name": "sql_queri",
+          "reason": "undeclared"
+        }
+      ]
+    }
+  },
+  {
+    "id": 3,
+    "request": {
+      "model": "qwen3.8-flash-next-unsloth-ud-q4_k_xl",
+      "max_tokens": 128,
+      "temperature": 0,
+      "reasoning_effort": "none",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Run SELECT 1 with sql_query."
+        }
+      ],
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "sql_query",
+            "description": "Run a read-only SQL query.",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "query": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "query"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      ]
+    },
+    "status": 200,
+    "seconds": 1.22686402592808,
+    "response": {
+      "id": "chatcmpl-bc7b30ef64414672b1db5768",
+      "object": "chat.completion",
+      "created": 1793953694,
+      "model": "qwen3.8-flash-next-unsloth-ud-q4_k_xl",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": null,
+            "tool_calls": [
+              {
+                "id": "call_aa35d0cc50b74694a7add268",
+                "type": "function",
+                "function": {
+                  "name": "sql_query",
+                  "arguments": "{\"query\":\"SELECT 1\"}"
+                }
+              }
+            ]
+          },
+          "finish_reason": "tool_calls"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 274,
+        "completion_tokens": 28,
+        "total_tokens": 302,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 274,
+        "prompt_ms": 683.0,
+        "prompt_per_token_ms": 2.493,
+        "prompt_per_second": 401.2,
+        "predicted_n": 28,
+        "predicted_ms": 478.3,
+        "predicted_per_token_ms": 17.082,
+        "predicted_per_second": 58.5,
+        "draft_n": 14,
+        "draft_n_accepted": 13
+      }
+    }
+  }
+]

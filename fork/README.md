@@ -92,3 +92,5 @@ GitHub Release assets can mirror those same archives. Private signing keys,
 models and build directories must never be committed. A future upstream pull
 request should contain only relevant source changes and tests, without this
 fork's distribution tooling or binary archives.
+
+Independent Mac baseline, frozen stress/control suite, performance protocol and manual switch instructions: [evaluation/README.md](evaluation/README.md). The evidence credits the original contributor and keeps original-PR verification separate from fork verification.
