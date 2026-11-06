@@ -14,6 +14,8 @@ jinja2==3.1.6 \
     --hash=sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67
 linkify-it-py==2.2.0 \
     --hash=sha256:3adc40eb5af300b2605fcfdb968c24e1d780a90f1f2221af7c15e5111e94d443
+llguidance==1.9.1 \
+    --hash=sha256:8aaa55958adb4871016700e9140543ccbd9d6b5136d0a1756a114af706cc50c1
 markdown-it-py==4.2.0 \
     --hash=sha256:9f7ebbcd14fe59494226453aed97c1070d83f8d24b6fc3a3bcf9a38092641c4a
 markupsafe==3.0.3 \

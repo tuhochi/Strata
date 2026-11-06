@@ -1,0 +1,41 @@
+{
+  "source_commit": "47369b49ce38ccc330358a97ef3ff5ae1a2158f9",
+  "core": {
+    "command": "python -m unittest serve.test_tool_name_constraint serve.test_constrain serve.test_structured fork.test_release_tools",
+    "passed": 75
+  },
+  "terminal_broad": {
+    "command": "pytest tests/terminal --ignore=tests/terminal/test_launch_tui_walk.py -q",
+    "passed": 2684,
+    "skipped": 53,
+    "failed": 14,
+    "subtests_passed": 311,
+    "notes": "Initial run before adapting fork-specific version/key test fixtures and adding llguidance hashes to the three non-macOS lock files."
+  },
+  "targeted_rerun": {
+    "command": "pytest tests/terminal/test_release_keys.py tests/terminal/test_tui2_023_versions.py tests/terminal/test_tui2_023_old_launcher.py tests/terminal/test_packaging_pins.py -q",
+    "passed": 21,
+    "subtests_passed": 16,
+    "failed": 0
+  },
+  "upstream_baseline": {
+    "commit": "c3b3f5035506f3e966f1b4b7b188aeaabae92f1d",
+    "failures_reproduced": [
+      "test_launch_dsv41.py: free disk space warning",
+      "test_sycl_package.py: Intel iGPU selection",
+      "test_tuiqa_monitor.py: three light theme cases",
+      "test_update_with_model_ds.py: fake running binary uses coreutils alias unsupported by host"
+    ],
+    "unchanged_source_extra_run": {
+      "passed": 32,
+      "failed": 5
+    }
+  },
+  "not_validated": [
+    "Exhaustive legacy TUI keyboard walk not completed",
+    "CUDA/HIP/SYCL builds and hardware",
+    "Final release model inference on owner-managed macstudio"
+  ],
+  "model_execution_on_atlas": "Not performed for this release by owner instruction",
+  "post_source_commit_changes": "Distribution verification scripts, test expectations and non-macOS packaging locks only; compiled macOS archive input remains source_commit."
+}

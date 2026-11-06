@@ -58,6 +58,15 @@ def verify(feed, port, prefix, output):
         check('engine installation tested version only, no model or server start', 'binary-only' in list(modes(data)))
         version = command([str(cli), '--version'])
         check('private bundled Python runtime', str(bundle / 'python') in version)
+        guard_probe = ('from serve import constrain as c; from serve.server import ByteTokenizer; '
+                       't=ByteTokenizer(); v=c.Vocab(t,set(t.encode("<|im_end|>",parse_special=True))); '
+                       'g=c.ToolNameConstraint(v,["sql_query"]); '
+                       '[g.feed(x) for x in t.encode("<function=")]; '
+                       'assert not c.Constraint.allowed(g.mask(),ord("m")); '
+                       'assert c.Constraint.allowed(g.mask(),ord("s"))')
+        command([str(python), '-c', guard_probe], cwd=bundle)
+        check('packaged ARM llguidance and name guard reject undeclared prefix', True)
+
         manifest = next((prefix / 'components').rglob('engine-component.json'))
         engine = manifest.parent
         script = ('from pathlib import Path; from strata_control import signing, engine_component as ec; '
