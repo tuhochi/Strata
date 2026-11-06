@@ -1,5 +1,10 @@
 # Patched Apple Silicon builds
 
+Version `v0.2.11-p4` adds the Codex Responses namespace compatibility fix to p3.
+It preserves declared-name masking and treats namespace dots literally. No mask
+ENV is required. Installer validation is separate from real-model acceptance;
+the recorded Mac model benchmarks still describe p3 until p4 is tested there.
+
 This fork tracks an official release plus a numbered patch: `v0.2.11-p1`, then
 `v0.2.11-p2` for another fix on the same release, or `v0.2.12-p1` for a new base.
 Published tags and archives are immutable. Numeric engine and Control package

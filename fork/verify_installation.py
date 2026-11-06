@@ -95,6 +95,38 @@ assert g.mask() == before
         command([str(python), '-c', composition_probe], cwd=bundle)
         check('packaged ARM request-driven tool guard and JSON composition work without mask ENV', True)
 
+        namespace_probe = """from serve import constrain as c, responses as r
+from serve.server import ByteTokenizer, Service
+from types import SimpleNamespace
+import os
+assert not any(k in os.environ for k in ('STRATA_TOOL_MASK', 'STRATA_TOOL_NAME_ENUM', 'STRATA_TOOL_MASK_STRICT'))
+t = ByteTokenizer()
+stop = set(t.encode('<|im_end|>', parse_special=True))
+v = c.Vocab(t, stop)
+req = {'tools': [{'type': 'namespace', 'name': 'diagnostic', 'tools': [
+    {'type': 'function', 'name': 'ping', 'parameters': {'type': 'object'}}]}]}
+tools, names, _ = r.request_tools(req)
+assert names['diagnostic.ping'] == ('diagnostic', 'ping', 'function')
+app = Service.__new__(Service)
+app.engine = SimpleNamespace(supports_mask=True)
+app.tok, app.stop_ids, app._llg_vocab = t, stop, v
+g = app._with_constraint({}, tools, False)[c.KEY]
+for token in t.encode('<function=diagnostic'):
+    assert c.Constraint.allowed(g.mask(), token)
+    g.feed(token)
+assert c.Constraint.allowed(g.mask(), ord('.'))
+assert not c.Constraint.allowed(g.mask(), ord('X'))
+for fmt in [None, {'type': 'json_object'}]:
+    legacy = c.Constraint(v, c.grammar(fmt, True, v, tool_names=['diagnostic.ping']), armed=True)
+    for token in t.encode('<tool_call>diagnostic', parse_special=True):
+        assert legacy.m.consume_token(token)
+    bits = legacy.m.compute_bitmask()
+    assert c.Constraint.allowed(bits, ord('.'))
+    assert not c.Constraint.allowed(bits, ord('X'))
+"""
+        command([str(python), '-c', namespace_probe], cwd=bundle)
+        check('packaged ARM Responses namespace guard and literal grammar dots work without mask ENV', True)
+
         manifest = next((prefix / 'components').rglob('engine-component.json'))
         engine = manifest.parent
         script = ('from pathlib import Path; from strata_control import signing, engine_component as ec; '
