@@ -1,0 +1,60 @@
+{
+  "source_commit": "f80bff47ed8ae0bcbb8e72b50c434804b692c62e",
+  "platform": "macos-arm64",
+  "checks": [
+    {
+      "case": "feed signature verified with bundled fork public key",
+      "passed": true
+    },
+    {
+      "case": "empty isolated model registry before engine installation",
+      "passed": true
+    },
+    {
+      "case": "engine installation tested version only, no model or server start",
+      "passed": true
+    },
+    {
+      "case": "private bundled Python runtime",
+      "passed": true
+    },
+    {
+      "case": "packaged ARM llguidance and name guard reject undeclared prefix",
+      "passed": true
+    },
+    {
+      "case": "packaged ARM request-driven tool guard and JSON composition work without mask ENV",
+      "passed": true
+    },
+    {
+      "case": "packaged ARM Responses namespace guard and literal grammar dots work without mask ENV",
+      "passed": true
+    },
+    {
+      "case": "engine signature and every package file verified",
+      "passed": true
+    },
+    {
+      "case": "Control and engine share the exact source commit",
+      "passed": true
+    },
+    {
+      "case": "fork release version is visible",
+      "passed": true
+    },
+    {
+      "case": "portable Metal binary loads outside build tree",
+      "passed": true
+    },
+    {
+      "case": "runtime kernels, vocabulary and picture reader included",
+      "passed": true
+    },
+    {
+      "case": "prefix with spaces works without compiler or system Python",
+      "passed": true
+    }
+  ],
+  "model_execution": "not run on atlas by owner instruction; installer starts no models",
+  "scope": "signed loopback fixture containing the exact release archives"
+}

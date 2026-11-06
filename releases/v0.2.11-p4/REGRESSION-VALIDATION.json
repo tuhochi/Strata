@@ -1,0 +1,34 @@
+{
+  "release": "v0.2.11-p4",
+  "source_commit": "f80bff47ed8ae0bcbb8e72b50c434804b692c62e",
+  "component_version": "0.1.57.4",
+  "scope": "Responses namespace compatibility while preserving exact declared-name masks",
+  "focused_regressions": {
+    "tests": 135,
+    "passed": 135,
+    "legacy_mock_mode": "STRATA_TOOL_MASK_STRICT=0; new namespace HTTP tests clear the environment and use the default guard"
+  },
+  "final_namespace_tests": {
+    "tests": 24,
+    "passed": 24
+  },
+  "package_version_tests": {
+    "tests": 34,
+    "passed": 34,
+    "subtests_passed": 16
+  },
+  "signed_ARM_installation": {
+    "checks": 13,
+    "passed": 13,
+    "namespace_guard_and_literal_dots_without_ENV": true
+  },
+  "patch_idempotence": "clean upstream apply passed; second application left all files byte-identical",
+  "client_integration": "Codex CLI 0.166.0 codexnext returned OK against corrected loopback mock; no real model involved",
+  "hardware_model_validation": "not yet run with p4; owner installs and restarts macstudio manually",
+  "known_limits": [
+    "uniqueItems and inherited JSON-schema fallback unchanged",
+    "No CUDA/HIP/SYCL builds or hardware verification in this release",
+    "Model metadata and MCP transport warnings are separate issues",
+    "Historical full legacy suite failures remain documented under p3; full suite not rerun for p4"
+  ]
+}
