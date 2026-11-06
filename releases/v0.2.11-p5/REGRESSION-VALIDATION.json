@@ -1,0 +1,184 @@
+{
+  "release": "v0.2.11-p5",
+  "source_commit": "b24b86d02fee859d2a4942a22609ce53d8ac6232",
+  "component_version": "0.1.57.5",
+  "full_terminal_setup_tools_and_fork": {
+    "collected": 4855,
+    "passed": 4747,
+    "skipped": 108,
+    "subtests_passed": 1079,
+    "failed": 0,
+    "shards": {
+      "main": {
+        "collected": 4844,
+        "passed": 4736,
+        "skipped": 108,
+        "subtests_passed": 989,
+        "failed": 0
+      },
+      "TUI_walk": {
+        "collected": 11,
+        "passed": 11,
+        "skipped": 0,
+        "subtests_passed": 90,
+        "failed": 0
+      }
+    },
+    "complete_collection_sha256": "456c157a2d93a2ded97d9d383fcb28c8af2c920511055c5847bbfdf4a08056d6"
+  },
+  "full_server_minimal_runtime": {
+    "tests": 1530,
+    "passed": 1511,
+    "skipped": 19,
+    "failed": 0,
+    "seconds": 714.029
+  },
+  "automatic_constraints_without_mask_ENV": {
+    "tests": 92,
+    "passed": 90,
+    "skipped": 2,
+    "failed": 0,
+    "seconds": 20.503
+  },
+  "optional_jsonschema_validation": {
+    "tests": 92,
+    "passed": 92,
+    "skipped": 0,
+    "failed": 0,
+    "seconds": 21.701
+  },
+  "app_host": {
+    "tests": 1612,
+    "passed": 1502,
+    "skipped": 110,
+    "failed": 0,
+    "node": "24.22.2"
+  },
+  "github_scripts": {
+    "passed": 17,
+    "failed": 0
+  },
+  "gfx906_host_guard": {
+    "checks": 31,
+    "passed": 31,
+    "scope": "mock HIP calls; CPU compiler only; no GPU execution"
+  },
+  "benchmark_replay_unit_tests": {
+    "tests": 8,
+    "passed": 8,
+    "skipped": 0,
+    "failed": 0,
+    "seconds": 5.578
+  },
+  "signed_ARM_installation": {
+    "checks": 13,
+    "passed": 13,
+    "archives_identical_to_release": true
+  },
+  "patch_idempotence": "covered in the full combined suite, including checksum-corruption refusal",
+  "pr": {
+    "url": "https://github.com/Niko1221/Strata/pull/5398",
+    "head": "6a1252a0e0e202c0ff5db0ce4716a60321b26f34",
+    "server_Python_syntax_trees_match_release": true,
+    "ci_runs": [
+      {
+        "url": "https://github.com/tuhochi/Strata/actions/runs/42239850251",
+        "head": "6a1252a0e0e202c0ff5db0ce4716a60321b26f34",
+        "workflow": ".github/workflows/terminal-minimal-server.yml",
+        "result": "success",
+        "scope_unchanged_when_older_head": false
+      },
+      {
+        "url": "https://github.com/tuhochi/Strata/actions/runs/42237764719",
+        "head": "b5a5adf0aaff6240dd00202e2f49e10b16f2c2d9",
+        "workflow": ".github/workflows/terminal-portable-monitor.yml",
+        "result": "success",
+        "scope_unchanged_when_older_head": true
+      }
+    ]
+  },
+  "tested_server_tree": "0d1d492e05af487203d0e9483b5c6144ce8771e0",
+  "tested_app_host_tree": "6546c167880e53cabc2ac8870ce82ce0b7d47a3f",
+  "environment": "Linux: Python 3.11 pinned runtime only and Python 3.12 development tests; Node 24. macOS ARM: signed installation and CPU library probes.",
+  "test_temporary_directory": "outside Git repositories and outside protected system directories; signing and path safety checks retained",
+  "known_limits": [
+    "Platform-, model-, optional-dependency- and external-Harness-dependent tests remain explicitly skipped; skipped tests are not counted as passed.",
+    "No model or real Strata service started on the builder; p5 real-model Mac acceptance needs owner installation and restart.",
+    "No CUDA/HIP/SYCL builds or GPU execution claimed; package-selection and host-guard tests are not hardware benchmarks.",
+    "Known uniqueItems limitation and inherited grammar fallback unchanged; no stricter runtime JSON rejection added."
+  ],
+  "packaged_source": {
+    "source_commit": "b24b86d02fee859d2a4942a22609ce53d8ac6232",
+    "checks": [
+      {
+        "file": "serve/server.py",
+        "sha256": "fb0a293932ede9a4319e96acd4702f6afa7ef2eea92e1f5c11f4cccb8c0e3383",
+        "matches_source": true
+      },
+      {
+        "file": "serve/constrain.py",
+        "sha256": "32a14dd5cf98a8e537679684887ff396009b66c9529a14244d9bb7d906dc1d59",
+        "matches_source": true
+      },
+      {
+        "file": "serve/responses.py",
+        "sha256": "476106ddf7c269010b305ecc9c35572d61e50029e12847bb2e216ccc3a149835",
+        "matches_source": true
+      },
+      {
+        "file": "serve/structured.py",
+        "sha256": "a067899ebd85932bd515b4cbf7a609d378c680c4ea3bd7542a90565d851fe499",
+        "matches_source": true
+      },
+      {
+        "file": "strata_cli/__init__.py",
+        "sha256": "847757e92c509a5b39b7771444eb80e26709db4e6230a1fdb4a8463ca56b0030",
+        "matches_source": true
+      },
+      {
+        "file": "strata_cli/launch/screens.py",
+        "sha256": "3b35b35a004bc459257433f5ccbdc3f5ad714df7c701c1c158f514a242fcbc23",
+        "matches_source": true
+      },
+      {
+        "file": "tools/strata_tokenizer.py",
+        "sha256": "6db1ea62d3edbaa64dce139088146ccf370933998d5f997cd5f41a39300075a6",
+        "matches_source": true
+      }
+    ]
+  },
+  "commands": {
+    "main": "STRATA_TOOL_MASK_STRICT=0 python -m pytest tests tools/test_*.py tools/dsv41/test_prompt_skip.py fork/test*.py --ignore=tests/terminal/test_launch_tui_walk.py -v",
+    "TUI_walk": "STRATA_TOOL_MASK_STRICT=0 python -m pytest tests/terminal/test_launch_tui_walk.py -v",
+    "server": "STRATA_TOOL_MASK_STRICT=0 python -m unittest discover -s serve -p \"test_*.py\"",
+    "request_defaults": "env -u STRATA_TOOL_MASK -u STRATA_TOOL_NAME_ENUM -u STRATA_TOOL_MASK_STRICT python -m unittest serve.test_tool_name_constraint serve.test_constrain serve.test_structured",
+    "optional_jsonschema": "STRATA_TOOL_MASK_STRICT=0 python -m unittest serve.test_constrain serve.test_structured serve.test_tool_name_constraint",
+    "export_gate": "python -m pytest fork/test_release_tools.py -q (also with core.autocrlf=false)",
+    "app_host": "npm ci --ignore-scripts; npm test (apps/host, Node 24)"
+  },
+  "process_stop_repeated_acceptance": {
+    "tests": 30,
+    "passed": 30,
+    "skipped": 0,
+    "failed": 0,
+    "seconds": 22.614
+  },
+  "committed_patch_export_gate": {
+    "tests": 2,
+    "passed": 2,
+    "git_line_ending_modes": [
+      "input",
+      "false"
+    ],
+    "committed_bytes_match_manifest": true,
+    "patch_sha256": "0ec5cbfb3f4dd098a6cf2dc4e119e4761020864f70436c0a700310347a76d72d"
+  },
+  "test_snapshots": {
+    "main": "c6234c4ed753e4ac6ba400c5f596399889ab5771",
+    "TUI_walk": "93e529c1a6a0f43562d1fe8fcf31f4d515e53262",
+    "server": "93e529c1a6a0f43562d1fe8fcf31f4d515e53262",
+    "committed_export_gate": "b24b86d02fee859d2a4942a22609ce53d8ac6232",
+    "runtime_and_walk_dependencies_verified_unchanged": true,
+    "only_post_main_changes": "byte-preserving Git attribute, patch payload export and strengthened release-tools checksum assertion; release-tools tests rerun after commit"
+  }
+}
