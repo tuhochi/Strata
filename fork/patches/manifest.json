@@ -24,6 +24,7 @@
     "docs/DETAILS.md",
     "include/strata/core/token_mask.hpp",
     "include/strata/core/verify.hpp",
+    "tools/test_docker_entrypoint.py",
     "requirements.txt",
     "serve/constrain.py",
     "serve/fake_mask_engine.py",
@@ -44,5 +45,5 @@
     "metal/src/engine/window.cpp",
     "metal/CMakeLists.txt"
   ],
-  "sha256": "ac70381d27213810f6c7d4fd37562a90037a120ef258e0607a07093f94218560"
+  "sha256": "cefd677a67e1e425036524eed50f8d734832376595d4e3fd7d62885523bf4a83"
 }
