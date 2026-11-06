@@ -1,0 +1,182 @@
+{
+  "groups": {
+    "control": {
+      "requests": 6,
+      "passed": 6,
+      "categories": {
+        "json_success": 5,
+        "text_success": 1
+      }
+    },
+    "integration": {
+      "requests": 3,
+      "passed": 0,
+      "categories": {
+        "api_error": 3
+      }
+    },
+    "negative": {
+      "requests": 3,
+      "passed": 3,
+      "categories": {
+        "expected_request_rejection": 3
+      }
+    },
+    "performance": {
+      "requests": 30,
+      "passed": 30,
+      "categories": {
+        "json_success": 30
+      }
+    },
+    "stress": {
+      "requests": 10,
+      "passed": 3,
+      "categories": {
+        "json_success": 3,
+        "structured_output_failed": 1,
+        "schema_violation": 6
+      }
+    }
+  },
+  "performance": {
+    "perf-object": {
+      "requests": 10,
+      "successful": 10,
+      "seconds": {
+        "n": 10,
+        "median": 1.9025411845650524,
+        "p95": 1.9647620059549809,
+        "min": 1.8957524109864607,
+        "max": 1.9647620059549809
+      },
+      "decode_tokens_per_second": {
+        "n": 10,
+        "median": 60.349999999999994,
+        "p95": 61.1,
+        "min": 59.9,
+        "max": 61.1
+      },
+      "completion_tokens": {
+        "n": 10,
+        "median": 105.0,
+        "p95": 105,
+        "min": 105,
+        "max": 105
+      },
+      "prompt_tokens": {
+        "n": 10,
+        "median": 133.0,
+        "p95": 133,
+        "min": 133,
+        "max": 133
+      },
+      "cached_tokens": {
+        "n": 10,
+        "median": 126.0,
+        "p95": 126,
+        "min": 126,
+        "max": 126
+      },
+      "draft_acceptance": {
+        "n": 10,
+        "median": 0.9629629629629629,
+        "p95": 1.0,
+        "min": 0.9298245614035088,
+        "max": 1.0
+      }
+    },
+    "perf-schema": {
+      "requests": 10,
+      "successful": 10,
+      "seconds": {
+        "n": 10,
+        "median": 1.91053232899867,
+        "p95": 1.9786639529047534,
+        "min": 1.8915353920310736,
+        "max": 1.9786639529047534
+      },
+      "decode_tokens_per_second": {
+        "n": 10,
+        "median": 60.3,
+        "p95": 61.0,
+        "min": 59.8,
+        "max": 61.0
+      },
+      "completion_tokens": {
+        "n": 10,
+        "median": 105.0,
+        "p95": 105,
+        "min": 105,
+        "max": 105
+      },
+      "prompt_tokens": {
+        "n": 10,
+        "median": 193.0,
+        "p95": 193,
+        "min": 193,
+        "max": 193
+      },
+      "cached_tokens": {
+        "n": 10,
+        "median": 186.0,
+        "p95": 186,
+        "min": 186,
+        "max": 186
+      },
+      "draft_acceptance": {
+        "n": 10,
+        "median": 0.9629629629629629,
+        "p95": 1.0,
+        "min": 0.9298245614035088,
+        "max": 1.0
+      }
+    },
+    "perf-text": {
+      "requests": 10,
+      "successful": 10,
+      "seconds": {
+        "n": 10,
+        "median": 0.8384650550433435,
+        "p95": 1.202207977999933,
+        "min": 0.8146837829845026,
+        "max": 1.202207977999933
+      },
+      "decode_tokens_per_second": {
+        "n": 10,
+        "median": 61.1,
+        "p95": 63.3,
+        "min": 61.1,
+        "max": 63.3
+      },
+      "completion_tokens": {
+        "n": 10,
+        "median": 41.0,
+        "p95": 41,
+        "min": 41,
+        "max": 41
+      },
+      "prompt_tokens": {
+        "n": 10,
+        "median": 62.0,
+        "p95": 62,
+        "min": 62,
+        "max": 62
+      },
+      "cached_tokens": {
+        "n": 10,
+        "median": 55.0,
+        "p95": 55,
+        "min": 55,
+        "max": 55
+      },
+      "draft_acceptance": {
+        "n": 10,
+        "median": 0.8928571428571429,
+        "p95": 0.9,
+        "min": 0.8928571428571429,
+        "max": 0.9
+      }
+    }
+  }
+}

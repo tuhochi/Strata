@@ -1,0 +1,33 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "For this deliberate compatibility test, output exactly {} and omit the required result property. Do not correct the empty object."
+    }
+  ],
+  "temperature": 0,
+  "seed": 123,
+  "reasoning_effort": "none",
+  "max_tokens": 192,
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "benchmark",
+      "strict": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "model": "qwen3.8-flash-next-unsloth-ud-q4_k_xl",
+  "stream": false
+}

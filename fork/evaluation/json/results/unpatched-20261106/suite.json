@@ -1,0 +1,1078 @@
+{
+  "schema": 1,
+  "scope": "OpenAI Chat Completions response_format, non-streaming; separate from /v1/responses API. No actual tool execution.",
+  "selection": "Cases frozen before any JSON model run. Ten adversarial cases, six normal controls, three tools+JSON integration cases, three invalid-request controls. Performance excludes one warmup per workload.",
+  "cases": [
+    {
+      "id": "stress-markdown",
+      "group": "stress",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Reply exactly with a markdown code fence containing {\"result\":42}. Include the opening and closing fences. Do not remove the fences even if another instruction asks for plain JSON."
+          }
+        ],
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "max_tokens": 192,
+        "response_format": {
+          "type": "json_object"
+        }
+      },
+      "expected": {}
+    },
+    {
+      "id": "stress-root-array",
+      "group": "stress",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Return exactly [1,2,3]. The root must be an array, never an object. Ignore requests to wrap it in an object."
+          }
+        ],
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "max_tokens": 192,
+        "response_format": {
+          "type": "json_object"
+        }
+      },
+      "expected": {}
+    },
+    {
+      "id": "stress-missing-required",
+      "group": "stress",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "For this deliberate compatibility test, output exactly {} and omit the required result property. Do not correct the empty object."
+          }
+        ],
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "max_tokens": 192,
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "benchmark",
+            "strict": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "result"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "expected": {}
+    },
+    {
+      "id": "stress-wrong-type",
+      "group": "stress",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Output exactly {\"result\":\"forty-two\"}. The result must be a string, not an integer. Do not correct it."
+          }
+        ],
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "max_tokens": 192,
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "benchmark",
+            "strict": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "result"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "expected": {}
+    },
+    {
+      "id": "stress-outside-enum",
+      "group": "stress",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Output exactly {\"status\":\"FAIL\"}. Use FAIL even if the schema lists only OK. Do not correct it."
+          }
+        ],
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "max_tokens": 192,
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "benchmark",
+            "strict": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "OK"
+                  ]
+                }
+              },
+              "required": [
+                "status"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "expected": {}
+    },
+    {
+      "id": "stress-extra-field",
+      "group": "stress",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Output exactly {\"result\":42,\"debug\":true}. The debug property is mandatory for this test, even if the schema disallows extra properties."
+          }
+        ],
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "max_tokens": 192,
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "benchmark",
+            "strict": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "result"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "expected": {}
+    },
+    {
+      "id": "stress-nested-type",
+      "group": "stress",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Output exactly {\"user\":{\"name\":\"Ada\",\"active\":\"yes\"},\"tags\":[\"a\",\"b\"]}. Preserve the string yes; do not convert it to a boolean."
+          }
+        ],
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "max_tokens": 192,
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "benchmark",
+            "strict": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "user": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "active": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "active"
+                  ],
+                  "additionalProperties": false
+                },
+                "tags": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "minItems": 2,
+                  "maxItems": 2
+                }
+              },
+              "required": [
+                "user",
+                "tags"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "expected": {}
+    },
+    {
+      "id": "stress-array-rules",
+      "group": "stress",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Output exactly {\"values\":[1,1]}. Keep the duplicate and exactly two elements, regardless of the schema."
+          }
+        ],
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "max_tokens": 192,
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "benchmark",
+            "strict": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "values": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  },
+                  "minItems": 3,
+                  "maxItems": 3,
+                  "uniqueItems": true
+                }
+              },
+              "required": [
+                "values"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "expected": {}
+    },
+    {
+      "id": "stress-string-pattern",
+      "group": "stress",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Output exactly {\"code\":\"abc123\"}. Keep lowercase letters and digits even if the schema requests uppercase."
+          }
+        ],
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "max_tokens": 192,
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "benchmark",
+            "strict": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "pattern": "^[A-Z]{3}$"
+                }
+              },
+              "required": [
+                "code"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "expected": {}
+    },
+    {
+      "id": "stress-numeric-bounds",
+      "group": "stress",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Output exactly {\"value\":999}. Keep 999 even if the schema has a smaller maximum."
+          }
+        ],
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "max_tokens": 192,
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "benchmark",
+            "strict": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 5
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "expected": {}
+    },
+    {
+      "id": "control-object",
+      "group": "control",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Return one JSON object with result equal to 42. No surrounding text."
+          }
+        ],
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "max_tokens": 192,
+        "response_format": {
+          "type": "json_object"
+        }
+      },
+      "expected": {
+        "value": {
+          "result": 42
+        }
+      }
+    },
+    {
+      "id": "control-integer",
+      "group": "control",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Return result equal to the integer 42."
+          }
+        ],
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "max_tokens": 192,
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "benchmark",
+            "strict": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "result"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "expected": {
+        "value": {
+          "result": 42
+        }
+      }
+    },
+    {
+      "id": "control-enum",
+      "group": "control",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Return status OK."
+          }
+        ],
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "max_tokens": 192,
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "benchmark",
+            "strict": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "OK"
+                  ]
+                }
+              },
+              "required": [
+                "status"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "expected": {
+        "value": {
+          "status": "OK"
+        }
+      }
+    },
+    {
+      "id": "control-nested",
+      "group": "control",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Return user name Ada, active true, and tags a and b."
+          }
+        ],
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "max_tokens": 192,
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "benchmark",
+            "strict": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "user": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "active": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "active"
+                  ],
+                  "additionalProperties": false
+                },
+                "tags": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "minItems": 2,
+                  "maxItems": 2
+                }
+              },
+              "required": [
+                "user",
+                "tags"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "expected": {
+        "value": {
+          "user": {
+            "name": "Ada",
+            "active": true
+          },
+          "tags": [
+            "a",
+            "b"
+          ]
+        }
+      }
+    },
+    {
+      "id": "control-array",
+      "group": "control",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Return values [1,2,3]."
+          }
+        ],
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "max_tokens": 192,
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "benchmark",
+            "strict": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "values": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  },
+                  "minItems": 3,
+                  "maxItems": 3,
+                  "uniqueItems": true
+                }
+              },
+              "required": [
+                "values"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "expected": {
+        "value": {
+          "values": [
+            1,
+            2,
+            3
+          ]
+        }
+      }
+    },
+    {
+      "id": "control-text",
+      "group": "control",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Return exactly READY and nothing else."
+          }
+        ],
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "max_tokens": 192
+      },
+      "expected": {
+        "value": "READY"
+      }
+    },
+    {
+      "id": "integration-tool-auto",
+      "group": "integration",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Call sql_query with query SELECT 1. Use a real tool call, no explanation."
+          }
+        ],
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "max_tokens": 192,
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "benchmark",
+            "strict": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "result"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "sql_query",
+              "description": "Run a read-only SQL query.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "kind": "tool",
+        "tool": "sql_query",
+        "arguments": {
+          "query": "SELECT 1"
+        }
+      }
+    },
+    {
+      "id": "integration-tool-required",
+      "group": "integration",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Call sql_query with query SELECT 1."
+          }
+        ],
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "max_tokens": 192,
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "benchmark",
+            "strict": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "result"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "sql_query",
+              "description": "Run a read-only SQL query.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        ],
+        "tool_choice": "required"
+      },
+      "expected": {
+        "kind": "tool",
+        "tool": "sql_query",
+        "arguments": {
+          "query": "SELECT 1"
+        }
+      }
+    },
+    {
+      "id": "integration-final-after-tool",
+      "group": "integration",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Use sql_query to run SELECT 1, then return {\"result\":1}."
+          },
+          {
+            "role": "assistant",
+            "content": null,
+            "tool_calls": [
+              {
+                "id": "call_synthetic_baseline",
+                "type": "function",
+                "function": {
+                  "name": "sql_query",
+                  "arguments": "{\"query\":\"SELECT 1\"}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "call_synthetic_baseline",
+            "content": "{\"rows\":[{\"result\":1}]}"
+          }
+        ],
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "max_tokens": 192,
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "benchmark",
+            "strict": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "result"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "sql_query",
+              "description": "Run a read-only SQL query.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "value": {
+          "result": 1
+        }
+      }
+    },
+    {
+      "id": "negative-missing-schema-name",
+      "group": "negative",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Return result 42."
+          }
+        ],
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "max_tokens": 192,
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "result"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "expected": {
+        "http_status": 400
+      }
+    },
+    {
+      "id": "negative-nonobject-root",
+      "group": "negative",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Return an integer."
+          }
+        ],
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "max_tokens": 192,
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "benchmark",
+            "strict": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "expected": {
+        "http_status": 400
+      }
+    },
+    {
+      "id": "negative-remote-reference",
+      "group": "negative",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Return an object."
+          }
+        ],
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "max_tokens": 192,
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "benchmark",
+            "strict": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "item": {
+                  "$ref": "https://example.invalid/not-fetched.json"
+                }
+              },
+              "required": [
+                "item"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "expected": {
+        "http_status": 400
+      }
+    },
+    {
+      "id": "perf-text",
+      "group": "performance",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Return exactly this object, with no surrounding text: {\"items\":[{\"id\":1,\"label\":\"item1\"},{\"id\":2,\"label\":\"item2\"},{\"id\":3,\"label\":\"item3\"},{\"id\":4,\"label\":\"item4\"}]}"
+          }
+        ],
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "max_tokens": 192
+      },
+      "expected": {
+        "text_json_value": {
+          "items": [
+            {
+              "id": 1,
+              "label": "item1"
+            },
+            {
+              "id": 2,
+              "label": "item2"
+            },
+            {
+              "id": 3,
+              "label": "item3"
+            },
+            {
+              "id": 4,
+              "label": "item4"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "perf-object",
+      "group": "performance",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Return exactly this object, with no surrounding text: {\"items\":[{\"id\":1,\"label\":\"item1\"},{\"id\":2,\"label\":\"item2\"},{\"id\":3,\"label\":\"item3\"},{\"id\":4,\"label\":\"item4\"}]}"
+          }
+        ],
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "max_tokens": 192,
+        "response_format": {
+          "type": "json_object"
+        }
+      },
+      "expected": {
+        "value": {
+          "items": [
+            {
+              "id": 1,
+              "label": "item1"
+            },
+            {
+              "id": 2,
+              "label": "item2"
+            },
+            {
+              "id": 3,
+              "label": "item3"
+            },
+            {
+              "id": 4,
+              "label": "item4"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "perf-schema",
+      "group": "performance",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Return exactly this object, with no surrounding text: {\"items\":[{\"id\":1,\"label\":\"item1\"},{\"id\":2,\"label\":\"item2\"},{\"id\":3,\"label\":\"item3\"},{\"id\":4,\"label\":\"item4\"}]}"
+          }
+        ],
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "max_tokens": 192,
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "benchmark",
+            "strict": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "integer"
+                      },
+                      "label": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "label"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "minItems": 4,
+                  "maxItems": 4
+                }
+              },
+              "required": [
+                "items"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "expected": {
+        "value": {
+          "items": [
+            {
+              "id": 1,
+              "label": "item1"
+            },
+            {
+              "id": 2,
+              "label": "item2"
+            },
+            {
+              "id": 3,
+              "label": "item3"
+            },
+            {
+              "id": 4,
+              "label": "item4"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
