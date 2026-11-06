@@ -1,0 +1,39 @@
+{
+  "upstream_release": "v0.2.11",
+  "upstream_commit": "c3b3f5035506f3e966f1b4b7b188aeaabae92f1d",
+  "upstream_patches": [
+    {
+      "pr": 3800,
+      "commit": "fc2c1ebb7fcc33465d7e2443165112339344b56d",
+      "author": "ncphri"
+    },
+    {
+      "pr": 4222,
+      "commit": "ed7f0d1eadbb79912af6aea82afad4e5ee8b443c",
+      "author": "ncphri"
+    }
+  ],
+  "paths": [
+    "docs/DETAILS.md",
+    "include/strata/core/token_mask.hpp",
+    "include/strata/core/verify.hpp",
+    "requirements.txt",
+    "serve/constrain.py",
+    "serve/fake_mask_engine.py",
+    "serve/responses.py",
+    "serve/server.py",
+    "serve/structured.py",
+    "serve/test_constrain.py",
+    "serve/test_structured.py",
+    "serve/test_tool_name_constraint.py",
+    "setup.py",
+    "src/core/verify.cpp",
+    "src/program/generate.cpp",
+    "sycl/include/strata/core/verify.hpp",
+    "sycl/src/core/verify.cpp",
+    "sycl/src/program/generate.cpp",
+    "metal/src/engine/window.cpp",
+    "metal/CMakeLists.txt"
+  ],
+  "sha256": "89b1426cdf64e573d473bf1da4388f99b52fd181d06c3ba9e610b267ffbc7a25"
+}

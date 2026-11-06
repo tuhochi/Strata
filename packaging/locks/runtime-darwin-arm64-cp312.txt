@@ -12,6 +12,8 @@ jinja2==3.1.6 \
     --hash=sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67
 linkify-it-py==2.2.0 \
     --hash=sha256:3adc40eb5af300b2605fcfdb968c24e1d780a90f1f2221af7c15e5111e94d443
+llguidance==1.9.1 \
+    --hash=sha256:a942487cd6221b793df3a11450881a6c9d25a45460a900c56d99b682633c45fe
 markdown-it-py==4.2.0 \
     --hash=sha256:9f7ebbcd14fe59494226453aed97c1070d83f8d24b6fc3a3bcf9a38092641c4a
 markupsafe==3.0.3 \
@@ -24,8 +26,8 @@ numpy==2.5.3 \
     --hash=sha256:f59a878c33d6b88122d80d239bb3b845d58708750b0cb06a09aebb9b18ec696c
 pillow==13.0.0 \
     --hash=sha256:fc481f742ccda20e9ed760b8f978dff50f2a4e9bc253ac167fb0a05b0783ef52
-platformdirs==4.13.0 \
-    --hash=sha256:3dbcf4cd708f21cf876c4eaa90e58412bc4f033d87143f41b1493ff77c25b7e1
+platformdirs==4.14.5 \
+    --hash=sha256:8e778c6fa421516f4d3369449f8df3b0e1b72c0e0005fe88e3ec772d0a14e750
 psutil==7.2.2 \
     --hash=sha256:1a7b04c10f32cc88ab39cbf606e117fd74721c831c98a27dc04578deb0c16979
 pygments==2.21.0 \

@@ -1,0 +1,54 @@
+name: Publish verified fork packages
+on:
+  push:
+    tags: ['v*-p*']
+    branches: [patched]
+    paths: ['releases/**', 'fork/LATEST', '.github/workflows/fork-release.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  publish:
+    if: github.repository == 'tuhochi/Strata'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify committed artifacts and signed feed
+        shell: bash
+        run: |
+          release=$(cat fork/LATEST)
+          cd "releases/$release"
+          sha256sum -c SHA256SUMS
+          cd ../..
+          python packaging/feed_tool.py verify-feed "releases/$release" --pub strata_control/update_keys.json
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const tag = fs.readFileSync('fork/LATEST','utf8').trim();
+            if (!/^v\d+(?:\.\d+){2,3}-p[1-9]\d*$/.test(tag)) throw new Error('Invalid fork release');
+            if (context.ref.startsWith('refs/tags/') && context.ref !== `refs/tags/${tag}`) throw new Error('Tag and release disagree');
+            const folder = `releases/${tag}`;
+            const proof = JSON.parse(fs.readFileSync(`${folder}/HARDWARE-VALIDATION.json`));
+            if (!proof.checks?.length || proof.checks.some(c => !c.passed)) throw new Error('Missing successful hardware checks');
+            const latest = context.ref === 'refs/heads/patched';
+            const args = {...context.repo, tag_name: tag, name: `Strata ${tag.slice(1)} for Apple Silicon`, draft: false, prerelease: false, make_latest: latest ? 'true' : 'false', body: `Official ${tag.split('-p')[0]} plus the fork's Qwen XML tool-name constraints.\n\nInstall the prebuilt Terminal and Metal engine with install-fork.sh. Requires Apple Silicon and macOS 15+. Model weights are separate.\n\nSource, limitations and update instructions: https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${tag}/fork/README.md\n\nArchives are identical to the committed release artifacts. See BUILD-REPORT.json and HARDWARE-VALIDATION.json for provenance and actual checks.`};
+            let release;
+            try { release = (await github.rest.repos.getReleaseByTag({...context.repo, tag})).data; }
+            catch(e) { if(e.status !== 404) throw e; release = (await github.rest.repos.createRelease(args)).data; }
+            const assets = await github.paginate(github.rest.repos.listReleaseAssets, {...context.repo, release_id:release.id});
+            const files = fs.readdirSync(folder).filter(n=>fs.statSync(path.join(folder,n)).isFile()).map(n=>path.join(folder,n));
+            for (const sub of ['control','engine']) {
+              for (const n of fs.readdirSync(`${folder}/${sub}`)) if(n.endsWith('.tar.gz')) files.push(`${folder}/${sub}/${n}`);
+            }
+            for(const file of files) {
+              const name = path.basename(file);
+              if(assets.some(a=>a.name===name)) continue;
+              const data = fs.readFileSync(file);
+              await github.rest.repos.uploadReleaseAsset({...context.repo, release_id:release.id, name, data, headers:{'content-type':'application/octet-stream','content-length':data.length}});
+            }
+            if(latest) await github.rest.repos.updateRelease({...context.repo, release_id:release.id, make_latest:'true'});

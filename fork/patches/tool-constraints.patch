@@ -1,0 +1,3097 @@
+diff --git a/docs/DETAILS.md b/docs/DETAILS.md
+index d2c0bb19..97318044 100644
+--- a/docs/DETAILS.md
++++ b/docs/DETAILS.md
+@@ -546,8 +546,9 @@ applies at the next start. Network, key, MCP and program keys are not editable t
+   there a call for an undeclared name is returned as a `tool_use`: Claude Code runs it, where text ended the turn.
+ - JSON output: `response_format: {"type":"json_object"}` or `{"type":"json_schema", ...}` on `/v1/chat/completions`. The schema
+   must accept only JSON objects at its root (`"type":"object"`, or `anyOf`/`oneOf` of object schemas). Local `#` references
+-  work and remote ones are refused. This is schema prompting followed by server validation, not grammar-constrained
+-  decoding, with one generation per request. `jsonschema` is used when installed (`python -m pip install "jsonschema>=4.23,<5"`);
++  work and remote ones are refused. This is schema prompting followed by server validation on the ordinary path, or
++  grammar-constrained decoding when the engine takes token masks and `llguidance` is installed (below); one generation
++  per request. `jsonschema` is used when installed (`python -m pip install "jsonschema>=4.23,<5"`);
+   without it the answer is only checked to be one JSON object. Malformed output returns **502** with
+   `error.code: structured_output_failed`, an invalid schema **400**. JSON formats combined with tools or MCP are refused.
+   Streaming buffers the answer and emits content only after validation. Math answers often hold LaTeX such as `\alpha`, which is
+@@ -612,6 +613,37 @@ applies at the next start. Network, key, MCP and program keys are not editable t
+   `STRATA_NAN_INJECT=<n>[,<n>...]` flags the n-th checked window to test the path. The one-shot command line and the
+   Intel (SYCL) port do not check.
+ 
++This is **schema prompting followed by server validation** on the ordinary path. When the engine takes token masks
++(its INFO line says `token_mask=1`) and the Python package `llguidance` is installed (setup adds it), the chat
++route's JSON formats are also **grammar-constrained**: before every generation window the engine asks the server
++(MQ) and the server answers with the tokens the grammar allows (MK) or free sampling (MF), so every emitted token
++advances the schema; a turn that opens a tool call leaves the grammar. Without the engine support or the package
++the server says so once and validation after the turn is all there is. Either way one generation is made per
++request, with no hidden retry. Successful responses contain a validated JSON object. Malformed JSON,
++duplicate keys, non-finite numbers, schema violations and incomplete generations return **502** with
++`error.code: structured_output_failed`; invalid request schemas return **400**. While the masks are live the
++chat route also takes `tools` (and `strata_mcp: true`) together with a JSON format: the grammar has two
++branches, so a turn that calls a tool comes back as the call, unchecked against the schema, and only the final
++answer is masked to the schema and validated after the turn. A forced `tool_choice` does not arm the mask; such
++a request answers under schema prompting and the validation after the turn. Where the masks are not live, a
++JSON format combined with tools/MCP returns **400** as before. Without `response_format`, ordinary text and
++tool behavior stays the same, unless `STRATA_TOOL_MASK=1` is set in the environment: then bare tool calls are
++grammar-constrained too - the choice is the call or prose, prose just cannot start with a `<` (a `<tool_call`
++tag, special token or plain text, can only arrive through the call branch, where the tool name sits behind
++`STRATA_TOOL_NAME_ENUM`'s enumeration and the separator after the name frees the turn for the body); a `<`
++later in the prose stays free. The bare-call grammar applies on every API that offers tools and carries no
++JSON format: `/v1/chat/completions`, `/v1/responses` (without `text.format`) and `/v1/messages` (Anthropic -
++its sampling carries no response_format, so bare calls are the only calls the grammar can see there). The
++bare-call grammar is opt-in and off by default, and like every mask
++setting it needs an engine with `token_mask` and the `llguidance` package; without them the request is
++unconstrained exactly as before.
++
++Structured SSE buffers the answer while sending keep-alive comments. It emits content only after validation,
++then usage/timings and `[DONE]`; failures emit an SSE error and `[DONE]` without invalid content deltas.
++`/v1/status.structured_output` advertises the formats, validation method and buffered streaming behavior; its
++`constrained_decoding` says whether the token masks are live for this server, and its `tools_with_json` says
++whether this server takes tools together with a JSON format on `/v1/chat/completions`.
++
+ ### Context and limits
+ 
+ - Context is chosen in setup (8K-262K). Requests longer than that are refused, never cut silently.
+diff --git a/include/strata/core/token_mask.hpp b/include/strata/core/token_mask.hpp
+new file mode 100644
+index 00000000..752ed44d
+--- /dev/null
++++ b/include/strata/core/token_mask.hpp
+@@ -0,0 +1,162 @@
++// include/strata/core/token_mask.hpp - serve's constrained decoding (serve/constrain.py), the engine's half.
++//
++// With `mask=1` on GEN the engine asks the server before every verify window (`MQ`) and reads one line back:
++//   MF                 free: the window as always (drafts, MTP)
++//   MF cut=<id,...>    free, but the accepted tokens end at the first of these ids (the end of the thinking)
++//   MK <base64>        a one-token window whose head logits outside the mask are set to kMaskedLogit before the
++//                      request's own sampler picks; little-endian uint32 words, bit v = token v allowed
++//   MKN <n> <b0> ...   a constrained window of up to n rows: row i is the mask for the token after the engine's
++//                      i-th draft (the same encoding as MK, one after another).  `token_mask=2` engines send
++//                      "MQ d1 .. dT-1" and the server answers MKN only when it looked the drafts through.
++// Header-only and backend-neutral: the CUDA, HIP and SYCL builds use the same host code.
++#pragma once
++#include <cstdint>
++#include <cstdlib>
++#include <string>
++#include <vector>
++
++#include "strata/kernels/verify_kernels.hpp"  // strata::kernels::kVerifyMaxT: the row cap an MKN answer may claim
++
++namespace strata::core {
++
++constexpr float kMaskedLogit = -1e30f;   // finite: no inf arithmetic in the penalties or the softmax
++
++/// base64 (standard alphabet, '=' padding) -> little-endian uint32 words.  False on a bad character or a length that
++/// is not a whole number of words.
++inline bool mask_b64_words(const char* s, std::vector<uint32_t>& out) {
++    auto val = [](char c) -> int {
++        if (c >= 'A' && c <= 'Z') return c - 'A';
++        if (c >= 'a' && c <= 'z') return c - 'a' + 26;
++        if (c >= '0' && c <= '9') return c - '0' + 52;
++        if (c == '+') return 62;
++        if (c == '/') return 63;
++        return -1;
++    };
++    std::vector<uint8_t> bytes;
++    uint32_t acc = 0;
++    int bits = 0;
++    for (const char* p = s; *p != '\0' && *p != ' ' && *p != '\r' && *p != '\n'; ++p) {
++        if (*p == '=') break;
++        const int v = val(*p);
++        if (v < 0) return false;
++        acc = (acc << 6) | (uint32_t) v;
++        bits += 6;
++        if (bits >= 8) {
++            bits -= 8;
++            bytes.push_back((uint8_t) ((acc >> bits) & 0xFFu));
++        }
++    }
++    if (bytes.size() % 4 != 0) return false;
++    out.assign(bytes.size() / 4, 0u);
++    for (size_t w = 0; w < out.size(); ++w)
++        out[w] = (uint32_t) bytes[4 * w] | ((uint32_t) bytes[4 * w + 1] << 8) | ((uint32_t) bytes[4 * w + 2] << 16) |
++                 ((uint32_t) bytes[4 * w + 3] << 24);
++    return true;
++}
++
++/// The server's answer to MQ, multi-row form.  `masked`: the window is constrained and `words` holds `rows` mask
++/// rows back to back (row i starts at words[i * n_words], with n_words = words.size() / rows); every row is encoded
++/// exactly like a single MK line.  MF/MF cut leave `rows` at 0 and fill `cut`.  Errors: rows < 1, rows >
++/// kVerifyMaxT, rows that disagree on their word count (so `words` is not rows * n_words), a bad base64 row.
++inline bool mask_parse_reply_rows(const std::string& line, bool& masked, int& rows,
++                                  std::vector<uint32_t>& words, std::vector<int32_t>& cut, std::string& err) {
++    masked = false;
++    rows = 0;
++    words.clear();
++    cut.clear();
++    if (line.rfind("MKN ", 0) == 0) {
++        const char* p = line.c_str() + 4;
++        char* e = nullptr;
++        const long n = std::strtol(p, &e, 10);
++        if (e == p || *e != ' ') { err = "a bad MKN row count"; return false; }
++        if (n < 1) { err = "MKN with rows < 1"; return false; }
++        if (n > strata::kernels::kVerifyMaxT) { err = "MKN rows above kVerifyMaxT"; return false; }
++        p = e + 1;
++        std::vector<uint32_t> row;
++        int64_t n_words = -1;
++        for (int i = 0; i < n; ++i) {
++            if (!mask_b64_words(p, row) || row.empty()) { err = "a bad MKN mask row"; return false; }
++            if (n_words < 0) n_words = (int64_t) row.size();
++            else if ((int64_t) row.size() != n_words) { err = "MKN rows of different widths"; return false; }
++            words.insert(words.end(), row.begin(), row.end());
++            for (; *p != '\0' && *p != ' '; ++p) {}
++            if (i + 1 < n) {
++                if (*p != ' ') { err = "MKN with fewer rows than its header"; return false; }
++                ++p;
++            }
++        }
++        if (*p != '\0' && *p != '\r' && *p != '\n') { err = "MKN with more rows than its header"; return false; }
++        masked = true;
++        rows = (int) n;
++        return true;
++    }
++    if (line.rfind("MK ", 0) == 0) {
++        if (!mask_b64_words(line.c_str() + 3, words) || words.empty()) { err = "a bad MK mask"; return false; }
++        masked = true;
++        rows = 1;
++        return true;
++    }
++    if (line == "MF") return true;
++    if (line.rfind("MF cut=", 0) == 0) {
++        const char* p = line.c_str() + 7;
++        while (*p != '\0') {
++            char* e = nullptr;
++            const long v = std::strtol(p, &e, 10);
++            if (e == p || v < 0) { err = "a bad MF cut list"; return false; }
++            cut.push_back((int32_t) v);
++            p = *e == ',' ? e + 1 : e;
++            if (*e != ',' && *e != '\0') { err = "a bad MF cut list"; return false; }
++        }
++        return true;
++    }
++    err = "expected MK, MKN or MF after MQ, got: " + line.substr(0, 40);
++    return false;
++}
++
++/// The server's answer to MQ.  `masked`: an MK line (its words in `words`); else `cut` holds the MF line's cut ids.
++/// The thin rows==1 wrapper of mask_parse_reply_rows: an "MKN 1 ..." answer parses as the single row, an MKN with
++/// more rows is an error here (the engine that cannot mask a window should not receive one).
++inline bool mask_parse_reply(const std::string& line, bool& masked, std::vector<uint32_t>& words,
++                             std::vector<int32_t>& cut, std::string& err) {
++    int rows = 0;
++    if (!mask_parse_reply_rows(line, masked, rows, words, cut, err)) return false;
++    if (rows > 1) { err = "MKN with more than one row"; return false; }
++    return true;
++}
++
++/// One row of head logits: every token outside the mask to kMaskedLogit.  Returns how many tokens are allowed.
++inline int64_t mask_apply_row(float* row, int64_t n_vocab, const uint32_t* words, int64_t n_words) {
++    int64_t allowed = 0;
++    for (int64_t v = 0; v < n_vocab; ++v) {
++        const int64_t w = v >> 5;
++        if (w < n_words && ((words[w] >> (v & 31)) & 1u)) ++allowed;
++        else row[v] = kMaskedLogit;
++    }
++    return allowed;
++}
++
++/// The accepted-draft count `a` of a free window, ended at the first cut id among the emitted outv[0..a): the
++/// window then emits outv[0..i] and commits window[0..i], exactly as if draft i+1 had been rejected.
++inline int mask_cut_accepted(const int32_t* outv, int a, const std::vector<int32_t>& cut) {
++    if (cut.empty()) return a;
++    for (int i = 0; i < a; ++i)
++        for (const int32_t c : cut)
++            if (outv[i] == c) return i;
++    return a;
++}
++
++/// Whether token v is allowed by the mask.  For row i of an MKN answer pass words.data() + i * n_words; the row is
++/// just a pointer offset, so the word count stays the per-row one.
++inline bool mask_allows(const uint32_t* words, int64_t n_words, int64_t v) {
++    return v >= 0 && (v >> 5) < n_words && ((words[v >> 5] >> (v & 31)) & 1u);
++}
++
++/// The allowed token with the highest logit (row already masked); -1 if none.
++inline int32_t mask_argmax(const float* row, int64_t n_vocab, const uint32_t* words, int64_t n_words) {
++    int32_t best = -1;
++    for (int64_t v = 0; v < n_vocab; ++v)
++        if (mask_allows(words, n_words, v) && (best < 0 || row[v] > row[best])) best = (int32_t) v;
++    return best;
++}
++
++}  // namespace strata::core
+diff --git a/include/strata/core/verify.hpp b/include/strata/core/verify.hpp
+index 258ba76e..20b62af6 100644
+--- a/include/strata/core/verify.hpp
++++ b/include/strata/core/verify.hpp
+@@ -180,6 +180,24 @@ public:
+     /// picks are discarded - a prompt read through windows commits every token - so they cost no sampler launch
+     /// or sync and never read a history staged for another position.
+     void set_head_sampling(bool on) { head_sampling_ = on; if (next_) next_->set_head_sampling(on); }
++    /// serve's constrained decoding (token_mask.hpp): the next run() sets every head logit of row t outside the
++    /// mask row t (words + t * n_words, the MKN layout of token_mask.hpp) to kMaskedLogit BEFORE the request's
++    /// own sampler runs, so plain sampling, the greedy argmax and the STRATA_SPEC_PROB rejection path all read the
++    /// masked distribution; a pick that still falls outside its row's mask (inverse-CDF rounding) becomes that
++    /// row's masked argmax.  `rows` is how many mask rows `words` holds; run() masks the window's first
++    /// min(rows, T) rows.  The 2-arg form is the old single-row call (rows = 1) - generate.cpp passes the MKN
++    /// row count from Phase 5 on; until then a multi-row window keeps only row 0 constrained.  The engine sets
++    /// it before a constrained window and clears it after (null).  `words` must stay alive until then.
++    void set_token_mask(const uint32_t* words, int64_t n_words, int rows = 1) {
++        tmask_ = words;
++        tmask_words_ = n_words;
++        tmask_rows_ = words != nullptr ? (rows > 0 ? rows : 1) : 0;
++        if (next_) next_->set_token_mask(words, n_words, rows);
++    }
++    const uint32_t* tmask_ = nullptr;
++    int64_t tmask_words_ = 0;
++    int tmask_rows_ = 0;              // mask rows held at tmask_ (1 for the old 2-arg call, 0 when off)
++    std::vector<float> tmask_row_;    // the masked head logits staged host side: tmask_rows_ rows of n_vocab_
+ 
+     /// LAYER SPLIT (multi-GPU): this verifier runs layers [layer_begin, layer_end) of every window.  A stage that
+     /// does not start at layer 0 takes its residual from `handoff_in` instead of embedding the tokens; a stage that
+diff --git a/metal/CMakeLists.txt b/metal/CMakeLists.txt
+index 85ff9112..02d9537a 100644
+--- a/metal/CMakeLists.txt
++++ b/metal/CMakeLists.txt
+@@ -114,7 +114,8 @@ file(GLOB STRATA_METAL_ENGINE_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_D
+ add_library(strata_metal_host STATIC ${STRATA_METAL_HOST_SOURCES})
+ target_include_directories(strata_metal_host PUBLIC ${STRATA_ROOT}/include ${S}/core ${STRATA_ROOT}/third_party/ggml
+                            ${STRATA_GGML_DIR}/ggml/include ${STRATA_GGML_DIR}/ggml/src ${STRATA_GGML_DIR}/ggml/src/ggml-cpu)
+-target_compile_definitions(strata_metal_host PUBLIC STRATA_NATIVE_EXPERTS=1 STRATA_HAVE_DFLASH2=1 STRATA_VERSION="0.1.57-metal")
++set(STRATA_FORK_ENGINE_VERSION "0.1.57" CACHE STRING "Fork engine package version")
++target_compile_definitions(strata_metal_host PUBLIC STRATA_NATIVE_EXPERTS=1 STRATA_HAVE_DFLASH2=1 STRATA_VERSION="${STRATA_FORK_ENGINE_VERSION}-metal")
+ target_compile_options(strata_metal_host PRIVATE -Wno-unused-parameter -Wno-deprecated-declarations)
+ target_link_libraries(strata_metal_host PUBLIC strata_gpu_metal ggml-cpu ggml-base)
+ 
+diff --git a/metal/src/engine/window.cpp b/metal/src/engine/window.cpp
+index 6f40b6c4..49e90fc3 100644
+--- a/metal/src/engine/window.cpp
++++ b/metal/src/engine/window.cpp
+@@ -24,6 +24,7 @@
+ #include "strata/core/layer.hpp"
+ #include "strata/core/conversation_cache.hpp"
+ #include "strata/core/session.hpp"
++#include "strata/core/token_mask.hpp"
+ #include "strata/kernels/ngram.hpp"
+ #include "strata/kernels/sampler.hpp"
+ namespace strata::gpu { void* host_view(const void* device_pointer); }
+@@ -196,6 +197,11 @@ public:
+     // history, Tn rows of hist_len tokens (the last penalty_last_n of a row count, -1 = unused), read when the window's rows are sampled.
+     void set_sampling(const strata::kernels::SamplerParams* sp, const int32_t* hist, int hist_len);
+     bool sample_rows(int Tn, int32_t* out, std::string& err);
++    // The borrow lives through one synchronous verify window. No mask changes the existing path.
++    const uint32_t* token_mask = nullptr;
++    int64_t token_mask_words = 0;
++    int token_mask_rows = 0;
++    bool mask_head_rows(int Tn, int32_t* out, bool after_sampling, std::string& err);
+     bool sample_slot_row(int row, const strata::kernels::SamplerParams& sp, const int32_t* hist, int hist_len, int32_t* tok, std::string& err);   // one slot's row of a batch window, its own params
+     bool sample_run(int row0, int n, const strata::kernels::SamplerParams& sp, const int32_t* hist, int hl, std::string& err);   // after run(): replaces out[0..Tn) (and tokout_) by the sampled tokens
+     bool copy_logits(int t, float* host) const;
+@@ -3149,6 +3155,30 @@ bool Window::sample_rows(int Tn, int32_t* out, std::string& err) {
+     return true;
+ }
+ 
++bool Window::mask_head_rows(int Tn, int32_t* out, bool after_sampling, std::string& err) {
++    if (!token_mask) return true;
++    const int rows = std::min(token_mask_rows, Tn);
++    if (rows < 1 || token_mask_words < (n_vocab_ + 31) / 32) {
++        err = "metal token mask: invalid row count or vocabulary width";
++        return false;
++    }
++    for (int t = 0; t < rows; ++t) {
++        float* logits = lm_.as<float>() + (size_t) t * n_vocab_;
++        const uint32_t* words = token_mask + (int64_t) t * token_mask_words;
++        if (!after_sampling && strata::core::mask_apply_row(logits, n_vocab_, words, token_mask_words) == 0) {
++            err = "metal token mask: no allowed token";
++            return false;
++        }
++        // Greedy picks made inside run() predate the mask. Sampled picks are checked after the GPU sampler.
++        if ((!after_sampling && !samp_on_) ||
++            (after_sampling && !strata::core::mask_allows(words, token_mask_words, out[t]))) {
++            out[t] = strata::core::mask_argmax(logits, n_vocab_, words, token_mask_words);
++            tokout_.as<int32_t>()[t] = out[t];
++        }
++    }
++    return true;
++}
++
+ bool Window::sample_slot_row(int row, const strata::kernels::SamplerParams& sp, const int32_t* hist, int hist_len, int32_t* tok, std::string& err) {
+     if (row < 0 || row >= MAXT) return true;
+     if (!sample_run(row, 1, sp, hist, hist_len, err)) return false;
+@@ -3294,13 +3324,22 @@ bool window_sample_slot_row(void* w, int row, const strata::kernels::SamplerPara
+ void window_set_sampling(void* w, const strata::kernels::SamplerParams* sp, const int32_t* hist, int hist_len) {
+     ((Window*) w)->set_sampling(sp, hist, hist_len);
+ }
++void window_set_token_mask(void* w, const uint32_t* words, int64_t n_words, int rows) {
++    Window* win = (Window*) w;
++    win->token_mask = words;
++    win->token_mask_words = n_words;
++    win->token_mask_rows = rows;
++}
+ bool window_run(void* w, int T, const int32_t* tokens, int64_t pos0, bool head, int32_t* out, std::string& err) {
+     // STRATA_LOGPOS (the quant yardstick, the KL harness): every window's head logits are read, also the prompt's
+     // windows that sample nothing (head_sampling off)
+     static const bool logpos = std::getenv("STRATA_LOGPOS") != nullptr;
+     Window* win = (Window*) w;
+     if (!win->run(T, tokens, pos0, head || logpos, out, err)) return false;
+-    return !head || win->sample_rows(T, out, err);   // a sampled / penalised / biased request: the head rows' tokens by the sampler chain (nothing to do for greedy)
++    if (!head) return true;
++    // run() waits for the GPU. lm_ is shared memory: mask before the next sampler dispatch, then check its picks.
++    return win->mask_head_rows(T, out, false, err) && win->sample_rows(T, out, err) &&
++           win->mask_head_rows(T, out, true, err);
+ }
+ void window_reset(const strata::core::SessionState* ss) {
+     if (g_the_window == nullptr || !g_the_window->ready()) return;
+diff --git a/requirements.txt b/requirements.txt
+index 19b446ff..3a4559c2 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -15,6 +15,7 @@ requests==2.34.2
+ pillow==13.0.0; python_version >= "3.11"
+ pillow==12.3.0; python_version < "3.11"
+ psutil==7.2.2
++llguidance==1.9.1
+ 
+ # their dependencies
+ markupsafe==3.0.3
+diff --git a/serve/constrain.py b/serve/constrain.py
+new file mode 100644
+index 00000000..82bc7d9d
+--- /dev/null
++++ b/serve/constrain.py
+@@ -0,0 +1,720 @@
++"""serve/constrain.py - constrained decoding for the JSON response formats: a token mask per step, from llguidance.
++
++The engine (strata --serve, `mask=1` on GEN, INFO token_mask=1, or token_mask=2 when it can mask a whole MTP
++window) asks before every verify window with a line `MQ` (or `MQ d1 d2 ...`, the drafts it would verify; only an
++engine that said token_mask=2 sends them); the server answers on stdin with one line:
++
++    MF                  free: the window runs as always (drafts, MTP) - the thinking, before the answer
++    MF cut=<id,...>     free, but the window's accepted tokens end at the first of these ids (</think>), so no draft
++                        past the end of the thinking is accepted unconstrained
++    MK <base64>         constrained: a one-token window (no drafts), and the head's logits outside the mask are set to
++                        -1e30 before the request's own sampler picks (greedy or sampled, penalties as asked).  The mask
++                        is little-endian uint32 words, bit v = token v allowed; words past the end are "not allowed".
++    MKN <n> <b0> ...    constrained, n rows: row i is the mask for the token after the engine's i-th draft (the same
++                        encoding as MK).  Only sent in answer to `MQ d...`; an engine that knows only MK never sees it.
++
++The grammar is the request's JSON schema (json_object: any object), and with tools also "<tool_call> + anything": a
++turn that calls tools stays a tool call (the server's own parser reads it), a turn that answers is the schema's JSON
++token for token.  Leading whitespace is allowed before either.  The thinking is not constrained: the mask starts
++after </think> (or at once when the prompt has already closed it, i.e. thinking off).
++
++llguidance is optional (`pip install llguidance`): without it, or with an engine that does not say token_mask=1 or
++token_mask=2, nothing changes - the prompt directive and the validation after the turn (serve/structured.py) remain
++the contract.
++The validation also stays ON with the mask: it is the check that the mask and the schema agree, not the guarantee.
++"""
++from __future__ import annotations
++import base64
++import json
++import re
++import threading
++
++# the custom_calls grammar (T2a) assembles its special tokens from the frontend constants, never from
++# text literals; frontend imports nothing from serve, so this top-level import cannot cycle.
++from serve.frontend import CALL_END, FUNC_END, FUNC_START, PARAM_END, PARAM_START
++
++try:
++    import llguidance as _llg
++    import llguidance.numpy  # noqa: F401  (part of the package; imported so a broken install fails here)
++except ImportError:                     # optional dependency
++    _llg = None
++
++KEY = "_strata_constraint"              # the sampling dict's key the engines read (never sent to the engine as text)
++THINK_END = b"</think>"
++TOOL_CALL = "<tool_call>"
++SPECIAL_MARK = b"\xff"                  # llguidance: a special token's bytes are 0xFF + its text
++_noted: set[str] = set()
++_note_lock = threading.Lock()
++
++
++def available() -> bool:
++    return _llg is not None
++
++
++def note_once(msg: str) -> None:
++    with _note_lock:
++        if msg in _noted:
++            return
++        _noted.add(msg)
++    print(f"[strata] {msg}", flush=True)
++
++
++# ------------------------------------------------------------------------------------------------ the vocabulary
++def _vocab_bytes(tok):
++    """-> (bytes per token id, special ids).  Three tokenizers are known: the tests' ByteTokenizer (one id per byte,
++    SPECIALS after 256), and the pack's tokenizer (strata_tokenizer.Tokenizer: `token_bytes(id)`, the token types
++    from token_type.json - 3 = control, 4 = user-defined such as <think> / <tool_call> - are special)."""
++    specials_list = getattr(tok, "SPECIALS", None)
++    if specials_list is not None and not hasattr(tok, "token_bytes"):          # ByteTokenizer
++        tokens = [bytes([i]) for i in range(256)] + [SPECIAL_MARK + s.encode() for s in specials_list]
++        return tokens, list(range(256, 256 + len(specials_list)))
++    if not hasattr(tok, "token_bytes"):
++        raise ValueError("this tokenizer has no token_bytes(); constrained decoding needs the bytes of every token")
++    n = None
++    for attr in ("n_vocab", "vocab_size"):
++        v = getattr(tok, attr, None)
++        n = v() if callable(v) else v
++        if isinstance(n, int) and n > 0:
++            break
++    if not isinstance(n, int) or n <= 0:
++        toks = getattr(tok, "tokens", None)
++        n = len(toks) if toks is not None else None
++    if not isinstance(n, int) or n <= 0:
++        raise ValueError("cannot tell this tokenizer's vocabulary size")
++    types = getattr(tok, "types", None) or getattr(tok, "token_types", None)
++    tokens, specials = [], []
++    for i in range(n):
++        b = tok.token_bytes(i) or b""
++        special = types is not None and i < len(types) and types[i] in (3, 4)
++        if special:
++            specials.append(i)
++            b = SPECIAL_MARK + b
++        tokens.append(bytes(b))
++    return tokens, specials
++
++
++class _Wrapper:
++    """What llguidance.TokenizerWrapper reads: tokens (bytes), eos/bos ids, special ids, and a callable tokenizer."""
++    def __init__(self, tok, tokens, specials, eos):
++        self.tok, self.tokens, self.special_token_ids = tok, tokens, specials
++        self.eos_token_id, self.bos_token_id = eos, None
++
++    def __call__(self, s):
++        if isinstance(s, (bytes, bytearray)):
++            s = bytes(s).decode("utf-8", errors="replace")
++        return list(self.tok.encode(s))
++
++
++class Vocab:
++    """The tokenizer as llguidance sees it.  Built once per server (about a second for 248K tokens)."""
++    def __init__(self, tok, stop_ids):
++        if _llg is None:
++            raise ValueError("llguidance is not installed")
++        self.tok = tok
++        self.tokens, self.specials = _vocab_bytes(tok)
++        self.n = len(self.tokens)
++        im_end = tok.encode("<|im_end|>", parse_special=True)
++        eos = im_end[0] if len(im_end) == 1 else min(stop_ids)
++        self.eos = sorted(set(stop_ids) | {eos})
++        self.lltok = _llg.LLTokenizer(_llg.TokenizerWrapper(_Wrapper(tok, self.tokens, self.specials, eos)),
++                                      eos_token=self.eos)
++        # the window cut while the thinking runs: </think> when it is one token, else every token ending in '>'
++        one = self.single(THINK_END.decode())
++        self.cut = [one] if one is not None else [i for i, b in enumerate(self.tokens) if b.endswith(b">")]
++        # the cut ids for a draft lookahead (1-1): the think_end cut above, plus <tool_call> when the tokenizer
++        # writes it as one special token - both end the constrained turn, so a draft at or past them is not fed
++        tool = self.single(TOOL_CALL)
++        self.cut_ids = list(self.cut) + ([tool] if tool is not None and tool not in self.cut else [])
++
++    def single(self, text: str):
++        """The id of `text` when the tokenizer writes it as ONE special token (<tool_call>, </think>), else None."""
++        ids = self.tok.encode(text, parse_special=True)
++        if len(ids) == 1 and ids[0] in set(self.specials):
++            return ids[0]
++        return None
++
++    def literal(self, text: str) -> str:
++        """`text` in a Lark rule: the special token itself when the model has one for it, else the string."""
++        one = self.single(text)
++        return f"<[{one}]>" if one is not None else json.dumps(text)
++
++    def bytes_of(self, t: int) -> bytes:
++        return self.tokens[t] if 0 <= t < self.n else b""
++
++
++# ------------------------------------------------------------------------------------------------ the grammar
++def format_of(sampling: dict):
++    """The request's JSON (or lark) format from its sampling dict (the request itself): chat's
++    response_format, or the Responses API's text.format.  None: plain text (nothing to constrain).
++    A lark response_format ({type: "lark", grammar: "<lark text>"}) passes through unchanged: llguidance
++    reads lark natively, so the grammar string is the whole constraint (a GBNF client converts first with
++    grammar_from("gbnf", ...) and sends the result).  A lark without a non-empty string grammar is not a
++    format - the same treatment as an unknown type (None)."""
++    rf = sampling.get("response_format")
++    if rf is None and isinstance(sampling.get("text"), dict):
++        fmt = sampling["text"].get("format")
++        if isinstance(fmt, dict) and fmt.get("type") == "json_schema":
++            rf = {"type": "json_schema", "json_schema": {k: fmt[k] for k in ("name", "schema", "strict") if k in fmt}}
++        elif isinstance(fmt, dict) and fmt.get("type") == "json_object":
++            rf = {"type": "json_object"}
++    if not isinstance(rf, dict):
++        return None
++    if rf.get("type") == "lark":
++        return rf if isinstance(rf.get("grammar"), str) and rf["grammar"] else None
++    if rf.get("type") not in ("json_object", "json_schema"):
++        return None
++    return rf
++
++
++_NAME_SAFE = re.compile(r"[A-Za-z0-9_-]+")    # a tool name safe to put in a grammar regex literal
++
++
++def safe_tool_names(tools) -> list[str]:
++    """The declared tool names a grammar can enumerate: the request's tools array (template form {name, ...} or
++    OpenAI form {type: function, function: {name, ...}} - the same array the route built from its own
++    template_tools()/openai_tools() call), filtered to [A-Za-z0-9_-]+.  A name outside that set is left out and
++    falls back to the free REST branch (a grammar regex literal must not carry stray regex syntax)."""
++    out = []
++    for t in tools or []:
++        if not isinstance(t, dict):
++            continue
++        name = t.get("name")
++        if name is None and isinstance(t.get("function"), dict):
++            name = t["function"].get("name")
++        if isinstance(name, str) and _NAME_SAFE.fullmatch(name) and name not in out:
++            out.append(name)
++    return out
++
++
++# custom tool grammars: the measured shape of notes/probes/t2_probe7.py (extracted, not retyped).
++# The name choice excludes prefix pairs longest-first; each call is the name literal, the open tag,
++# the input parameter and one value lexeme that ends at the parameter close tag, then the function
++# and call close tags.  No look-ahead, no WS branch inside the calls branch (W5 panic).
++
++
++# T3 (spec item 3): the body binds only when the tokenizer holds the call opener as ONE
++# token (checked per vocabulary, notes/T3-impl.md); the envelope tokens ride vocab.literal
++# so both pack shapes match.
++
++def _def_esc(d):
++    return d.replace("\\", "\\\\").replace("/", "\\/").replace("\n", "\\n")
++
++
++def _value_lex(d):
++    return "/" + _def_esc(d) + "\\n" + PARAM_END.replace("/", "\\/") + "/"
++
++
++def _custom_calls_grammar(entries, vocab, body_bound=True):
++    names = [e["name"] for e in entries]
++    kept = []
++    for n in sorted(set(names), key=lambda n: (-len(n), n)):
++        if not any(k != n and k.startswith(n) for k in kept):
++            kept.append(n)
++    rules, choice = [], []
++    for i, e in enumerate(entries):
++        if e["name"] not in kept:
++            continue
++        if body_bound:          # T3 (spec item 3 + the T3d lesson): the envelope tokens ride
++                                # vocab.literal, so the grammar matches a pack that holds them as
++                                # ONE type-4 token and one that writes them as text - the measured
++                                # marker-byte refusal at the close was the plain-text closer literal
++            rules.append(f't{i}: "{e["name"]}" ">" "\\n" '
++                         f'{vocab.literal(PARAM_START)} "input" ">" "\\n" '
++                         f'{_value_lex(e["definition"])} "\\n" {vocab.literal(FUNC_END)} "\\n" '
++                         f'{vocab.literal(CALL_END)}')
++        else:                   # the T3d fallback: a vocabulary without the opener as ONE token gets
++                                # the name enumeration only - the body stays the free REST (spec item 3)
++            rules.append(f't{i}: "{e["name"]}" ">"')
++        choice.append(f"t{i}")
++    lines = ["start: WS? answer", "WS: /[ \\t\\r\\n]+/", "answer: calls | PROSE",
++             "PROSE: /[^<][\\s\\S]*/", "REST: /[\\s\\S]*/",
++             f'calls: {vocab.literal(TOOL_CALL)} "\\n" {vocab.literal(FUNC_START)} ( ' + " | ".join(choice) + " ) REST"] + rules
++    return "\n".join(lines) + "\n", kept
++
++
++def grammar(rf: dict | None, with_tools: bool, vocab: Vocab, tool_names=None) -> str:
++    """The Lark grammar: optional whitespace, then the schema's JSON - or, with tools, a tool call.
++    With no format but tools and STRATA_TOOL_MASK=1 (the bare-call grammar), the choice is the call or
++    PROSE: prose cannot START with '<' (a tag or '<tool_call' text must go through the calls branch, where
++    the name sits behind the enum) but a '<' later in the text stays free (measured: masked=0, EOS ok).
++    `tool_names` (opt-in, T3a): when a non-empty list is given, the call's name sits behind a literal
++    single-choice regex (only these names, with a maximal-munch lookahead) instead of being free; the body
++    after the name stays the free REST, as always (the server's tool-call parser reads it, v3 lesson)."""
++    if rf is None:                                   # the bare-call grammar (STRATA_TOOL_MASK=1)
++        if not with_tools:
++            raise ValueError("the bare-call grammar needs tools")
++        names = [n for n in (tool_names or []) if _NAME_SAFE.fullmatch(n)]
++        lines = ["start: WS? answer",
++                 "WS: /[ \\t\\r\\n]+/",
++                 "answer: calls | PROSE",
++                 "PROSE: /[^<][\\s\\S]*/"]
++        if names:
++            alt = "|".join(sorted(names, key=lambda n: (-len(n), n)))
++            lines += [f'calls: {vocab.literal(TOOL_CALL)} WS? NAME REST',
++                      f"NAME: /(?:{alt})[\\s<]/",
++                      "REST: /[\\s\\S]*/"]
++        else:
++            lines += [f"calls: {vocab.literal(TOOL_CALL)} REST",
++                      "REST: /[\\s\\S]*/"]
++        return _llg.LLMatcher.grammar_from_lark("\n".join(lines) + "\n")
++    if rf["type"] == "lark":
++        # the user's own lark grammar (format_of's passthrough): llguidance reads lark natively, so the
++        # text goes to the matcher as it stands - no JSON branch, no calls branch (the grammar itself
++        # decides what the turn may be).  A grammar llguidance cannot compile leaves Constraint() with
++        # m.is_error() -> the caller's _with_constraint catches it and drops the mask (free decoding,
++        # never a 502), the same fallback as an uncompilable schema.
++        g = rf.get("grammar")
++        if not isinstance(g, str) or not g:
++            raise ValueError("lark without a grammar string")
++        return _llg.LLMatcher.grammar_from_lark(g)
++    if rf["type"] == "custom_calls":
++        # T2a: custom tool grammars (the spec item 2).  The route passes the entries it built from the
++        # request's custom tools ({name, definition}, definition a grammar text the value lexeme embeds);
++        # the answer is the probe7 calls shape or PROSE.  The caller pairs this grammar with
++        # Constraint(custom_calls=True): the mask stays live through the whole call (no tag or separator
++        # release) and the closing call-end token frees the turn.  An empty or all-unsafe entry list
++        # raises: the caller's existing handler drops the mask (free decoding, never a 502).
++        entries = rf.get("entries")
++        kept = [e for e in (entries or [])
++                if isinstance(e, dict) and isinstance(e.get("name"), str)
++                and _NAME_SAFE.fullmatch(e["name"]) and isinstance(e.get("definition"), str)]
++        if not kept:
++            raise ValueError("custom_calls without a usable entry")
++        # T3 (spec item 3, the T3d lesson): the body binds only when the tokenizer holds the
++        # call opener as ONE type-4 token; else the name enumeration stays and the body stays
++        # the free REST
++        body = vocab.single(TOOL_CALL) is not None
++        return _llg.LLMatcher.grammar_from_lark(_custom_calls_grammar(kept, vocab, body)[0])
++    if rf["type"] == "json_object":
++        schema = {"type": "object"}
++    else:
++        schema = (rf.get("json_schema") or {}).get("schema")
++        if not isinstance(schema, dict):
++            raise ValueError("json_schema without a schema object")
++    names = [n for n in (tool_names or []) if _NAME_SAFE.fullmatch(n)]
++    lines = ["start: WS? answer",
++             "WS: /[ \\t\\r\\n]+/",
++             "answer: json" + (" | calls" if with_tools else ""),
++             "json: %json " + json.dumps(schema, ensure_ascii=False)]
++    if with_tools:
++        # the call itself is not constrained here: the server's tool-call parser reads it as it always did.
++        # Anything may follow the opening tag - a tokenizer that writes <tool_call> as plain text (no special
++        # token, so feed() cannot free the turn) must still be able to finish the call.
++        if names:
++            # opt-in (T3a/T3d): the declared names are a literal single choice right after the tag (an undecided
++            # whitespace run may sit between them); everything past the name stays REST.
++            # T3d: llguidance 1.9.1 rejects look-around in a regex literal, so the maximal-munch lookahead
++            # (?![\w-]) is replaced by a mandatory delimiter class [\s<] after the alternation (measured in
++            # scratch/t3v_corr.py: with a prefix pair like exec/exec_command the grammar stays on the longer
++            # branch after 'exec', pinning the longest name).  Longest-first ordering keeps that pinning for
++            # llguidance's prioritized alternation.  Names are pre-filtered to [A-Za-z0-9_-]+ by _NAME_SAFE,
++            # so no regex metacharacter can enter the literal (no re.escape needed).
++            alt = "|".join(sorted(names, key=lambda n: (-len(n), n)))
++            lines += [f'calls: {vocab.literal(TOOL_CALL)} WS? NAME REST',
++                      f"NAME: /(?:{alt})[\\s<]/",
++                      "REST: /[\\s\\S]*/"]
++        else:
++            lines += [f"calls: {vocab.literal(TOOL_CALL)} REST",
++                      "REST: /[\\s\\S]*/"]
++    return _llg.LLMatcher.grammar_from_lark("\n".join(lines) + "\n")
++
++
++# ------------------------------------------------------------------ a masked window with drafts (1-1)
++def masks_for_window(m, drafts, cut_ids):
++    """The masks for rows 0..k of one verify window: row 0 for the token the head picks now, row i for the token
++    after the engine's i-th draft (so an MTP window stays constrained token by token).  The matcher's state is
++    restored to what it was on entry (rollback in a finally); a rollback failure raises RuntimeError (1-5).
++
++    How many drafts are valid is probed on a deep copy, one token at a time: llguidance's validate_tokens reports
++    k=0 for some single-byte tokens that the grammar accepts (':' after a key), and a refused consume leaves the
++    matcher in a permanent error state that rollback cannot undo (measured, llguidance 1.9.1).  The copy takes the
++    error instead; the original only consumes drafts the copy already accepted, so its consume cannot fail.
++    There is one row per token the copy consumed, plus the head's row: when the grammar ends inside the window the
++    last row is the EOS-only mask, which is what lets the window stop there."""
++    drafts = list(drafts)
++    for i, d in enumerate(drafts):            # think_end / tool_call sit outside the grammar: cut before them
++        if d in cut_ids:
++            drafts = drafts[:i]
++            break
++    k = 0
++    if drafts:
++        probe = m.deep_copy()
++        for d in drafts:
++            if not probe.consume_tokens([d]):  # the first token that leaves the grammar: no rows past it
++                break
++            k += 1
++    masks = [m.compute_bitmask()]
++    done = 0
++    try:
++        for d in drafts[:k]:                  # consume one draft at a time, one row of the window per step
++            if not m.consume_tokens([d]):     # accepted on the copy, so this should not happen; keep the rows so far (1-5)
++                note_once("constrained decoding: a validated draft was refused during the mask lookahead; "
++                          "the masked window keeps the rows up to it")
++                break
++            done += 1
++            if m.is_stopped():
++                # the grammar ends here.  Every draft was consumed (the engine will ask for the token after
++                # the last one): its row is the EOS-only mask.  Drafts remain (they sit past the end): the
++                # window is cut at the end - no row past it (test_6; a consume past it would error anyway).
++                if done == k and k == len(drafts):
++                    masks.append(m.compute_bitmask())
++                break
++            masks.append(m.compute_bitmask())
++    finally:
++        if done and not m.rollback(done):
++            raise RuntimeError("llguidance rollback failed")
++    return masks
++
++
++# ------------------------------------------------------------------------------------------------ one turn
++class Constraint:
++    """One generation pass of one request: the matcher, and whether the answer (the constrained part) has started."""
++    def __init__(self, vocab: Vocab, grammar_text: str, armed: bool, name_enum: bool = False,
++                 custom_calls: bool = False):
++        # T2a (custom_calls): the mask stays live through the whole call; the closing call-end token
++        # frees the turn.  call_end is None when the tokenizer has no single token for it (then the
++        # release rides on the consume-refusal path only, the probe7 finding).
++        self.custom_calls = bool(custom_calls)
++        self.call_end = vocab.single(CALL_END)
++
++        self.vocab, self.armed = vocab, armed
++        self.m = _llg.LLMatcher(vocab.lltok, grammar_text, log_level=0)
++        if self.m.is_error():
++            raise ValueError(f"grammar: {self.m.get_error()}")
++        self.tail = b""
++        self.failed = None                  # why the mask was given up (the validation after the turn then decides)
++        self.masked = 0                     # tokens decoded under a mask (diagnostics, tests)
++        self.tool_call = vocab.single(TOOL_CALL) # its id, when the model has one token for it
++        # T3a (opt-in): with an enumerated call the release waits for the name - the tag alone no longer frees
++        # the turn; the grammar masks the name's bytes, and a refused consume lands on the existing failed
++        # downgrade below (a refused consume is a permanent matcher error, rollback cannot undo it - measured).
++        self.name_enum = bool(name_enum)
++        self.await_name = False             # the tag was fed under name_enum: the next tokens are the name
++        self.name_len = 0                   # name-enum: non-separator tokens consumed since the tag
++
++    # --- the engine's question
++    def active(self) -> bool:
++        return self.armed and self.failed is None and not self.m.is_error()
++
++    def mask(self) -> bytes | None:
++        """The packed mask for the next token, or None when the next token is free."""
++        if not self.active():
++            return None
++        return self.m.compute_bitmask()
++
++    def reply(self, drafts=None) -> str:
++        """The answer to the engine's MQ line (without the newline).  `drafts` (1-2): the engine's draft tokens
++        for this window, sent only by an engine that said token_mask=2; empty or None keeps the one-row answer."""
++        if drafts and self.armed and self.failed is None and not self.m.is_error():
++            try:
++                masks = masks_for_window(self.m, drafts, self.vocab.cut_ids)
++            except Exception as e:                        # 1-5: rollback or matcher failure - drop the mask, log it
++                self.failed = str(e).splitlines()[0][:160] or "mask lookahead failed"
++                note_once(f"constrained decoding: gave the mask up in a turn ({self.failed}); "
++                          "the turn is validated after")
++            else:
++                self.masked += len(masks)
++                if len(masks) == 1:                       # 1-3: one row keeps the current MK form (old-engine safe)
++                    return "MK " + base64.b64encode(masks[0]).decode("ascii")
++                rows = " ".join(base64.b64encode(b).decode("ascii") for b in masks)
++                return f"MKN {len(masks)} {rows}"
++        bits = self.mask()
++        if bits is None:
++            if not self.armed and self.vocab.cut:
++                return "MF cut=" + ",".join(str(i) for i in self.vocab.cut)
++            return "MF"
++        self.masked += 1
++        return "MK " + base64.b64encode(bits).decode("ascii")
++
++    # --- what came out
++    def feed(self, t: int) -> None:
++        """A token the engine emitted (in order)."""
++        if self.failed is not None:
++            return
++        if self.custom_calls:
++            # T2a (probe7 measured): no tag / separator release - the mask stays live through the whole
++            # call; the closing CALL_END frees the turn, a refused consume lands on the existing
++            # downgrade (failed set, reply -> MF, the validation after the turn decides).
++            if not self.armed:
++                self.tail = (self.tail + self.vocab.bytes_of(t))[-64:]
++                if self.tail.endswith(THINK_END):
++                    self.armed = True
++                return
++            if not self.m.consume_token(t):
++                self.failed = "outside grammar"
++                note_once("constrained decoding: gave the mask up in a custom_calls turn (token outside "
++                          "the grammar); the turn is validated after")
++                return
++            if t == self.tool_call:
++                self.await_name = True
++            elif self.await_name and self.call_end is not None and t == self.call_end:
++                self.await_name = False
++                self.armed = False
++                self.failed = "tool call"
++            return
++        if not self.armed:
++            self.tail = (self.tail + self.vocab.bytes_of(t))[-64:]
++            if self.tail.endswith(THINK_END):
++                self.armed = True
++            return
++        # --- a tool call: the turn is free from here (unless the call's names are enumerated, T3a: the
++        #     release waits for the name, the grammar masks its bytes, a rule-breaker lands on failed below)
++        if self.tool_call is not None and t == self.tool_call and not self.name_enum:
++            self.armed = False                  # a tool call: the turn is free from here (not validated)
++            self.failed = "tool call"           # mask() -> None, reply() -> "MF" for the rest of the turn
++            return
++        if not self.m.consume_token(t):
++            self.failed = self.m.get_error() or f"token {t} is outside the grammar"
++            why = (self.failed.strip().splitlines() or ["?"])[0][:160]
++            note_once(f"constrained decoding: gave the mask up in a turn ({why}); the turn is validated after")
++            return
++        if self.name_enum and self.tool_call is not None and t == self.tool_call:
++            self.await_name = True          # the tag sat in the grammar and is consumed: the name is next
++        if self.await_name:
++            # the separator after the enumerated name frees the turn (_all_free() can never fire on a byte
++            # vocabulary: REST compiles to the valid-UTF-8 character set and the invalid single bytes stay
++            # masked forever - measured 2026-10-26, 82/263 tokens, so the release below never reached):
++            text = self.vocab.tok.decode([t])
++            if text and all(ch in " \t\r\n<" for ch in text) and self.name_len > 0:
++                self.await_name = False
++                self.armed = False
++                self.failed = "tool call"
++                return
++            if not (text and all(ch in " \t\r\n<" for ch in text)):
++                self.name_len += 1          # a name token (separators before the name do not count)
++        if self.await_name and self._all_free():
++            # the name is behind us and the body is the free REST: the turn is free exactly where the
++            # tag-only release used to free it one token earlier (the parser reads the call as it always did)
++            self.await_name = False
++            self.armed = False
++            self.failed = "tool call"
++
++    def _all_free(self) -> bool:
++        """True when the matcher's next mask allows every token of the vocabulary: the grammar is past the
++        enumerated name, into REST (anything may follow) - the point where a name-enumerated call frees the
++        turn.  A refused consume can never reach here (it sets failed above and the mask is not asked again)."""
++        bits = self.m.compute_bitmask()
++        nwords = (self.vocab.n + 31) // 32
++        if 4 * nwords > len(bits):              # words past the end are "not allowed": not free
++            return False
++        for w in range(nwords):
++            word = int.from_bytes(bits[4 * w:4 * w + 4], "little")
++            bits_in = min(32, self.vocab.n - 32 * w)
++            if word & ((1 << bits_in) - 1) != (1 << bits_in) - 1:
++                return False                    # one in-vocab token is masked out: still constrained
++        return True
++
++    def observe(self, ids) -> None:
++        """Tokens the server put into the stream itself (the thinking budget's wrap-up, which ends in </think>)."""
++        for t in ids:
++            if self.armed:
++                break
++            self.feed(t)
++
++    @staticmethod
++    def allowed(bits: bytes, t: int) -> bool:
++        w = t >> 5
++        return 4 * w + 4 <= len(bits) and (int.from_bytes(bits[4 * w:4 * w + 4], "little") >> (t & 31)) & 1 == 1
++
++    def mock_replay(self, script, max_new, cancel, delay=0.0):
++        """MockEngine under a mask: a "model" that wants to write `script`.  Where the mask forbids its next token it
++        drops it and goes on with the rest (prose around the JSON disappears, a wrongly typed value loses its quotes);
++        when the script runs out it ends the turn if the grammar may end, else takes the grammar's forced tokens."""
++        import time
++        i, out = 0, 0
++        while out < max_new and not cancel.is_set():
++            if delay:
++                time.sleep(delay)
++            bits = self.mask()
++            if bits is not None:
++                self.masked += 1
++            t = None
++            while i < len(script):
++                cand = script[i]
++                i += 1
++                if bits is None or self.allowed(bits, cand):
++                    t = cand
++                    break
++            if t is None:                                        # the script is used up
++                if bits is None:
++                    return
++                eos = next((e for e in self.vocab.eos if self.allowed(bits, e)), None)
++                ff = self.m.compute_ff_tokens()
++                t = eos if eos is not None else (ff[0] if ff else None)
++                if t is None:
++                    return                                       # nothing forced: the turn ends short ("length")
++            self.feed(t)
++            out += 1
++            yield t
++            if t in self.vocab.eos:
++                return
++
++
++class ToolNameConstraint:
++    """Opt-in, persistent Qwen XML name mask, including thinking and every call.
++
++    Unlike the original answer|calls grammar, prose and the end of a name never
++    release this guard. It is a byte automaton over the tokenizer's real pieces,
++    so split tags, merged pieces and speculative windows have the same rule.
++    An optional JSON constraint is intersected with it. Errors are never MF.
++    """
++    OPENER = b'<function='
++    WS = b' \t\r\n'
++
++    def __init__(self, vocab, names, inner=None):
++        if not names or any(not isinstance(n, str) or not _NAME_SAFE.fullmatch(n) for n in names):
++            raise ValueError('strict tool names must be non-empty ASCII identifiers')
++        self.vocab, self.inner = vocab, inner
++        self.names = frozenset(n.encode('ascii') for n in names)
++        self.prefixes = {n[:i] for n in self.names for i in range(1, len(n) + 1)}
++        self.state = (0, b'')
++        self.failed = None
++        self.masked = 0
++        if not hasattr(vocab, '_tool_pieces'):
++            special = set(vocab.specials)
++            pieces = tuple(b[1:] if i in special else b for i, b in enumerate(vocab.tokens))
++            buckets = {}
++            for i, b in enumerate(pieces):
++                if b:
++                    buckets.setdefault(b[0], []).append(i)
++            vocab._tool_pieces = pieces
++            vocab._tool_buckets = buckets
++            vocab._tool_equals = tuple(i for i, b in enumerate(pieces) if b'=' in b)
++            vocab._tool_masks = {}
++        self.pieces = vocab._tool_pieces
++        self.cache = vocab._tool_masks.setdefault(tuple(sorted(self.names)), {})
++
++    def active(self):
++        return self.failed is None
++
++    def _step(self, state, token):
++        mode, tail = state
++        if token in self.vocab.eos:
++            return state if mode == 0 else None
++        for ch in self.pieces[token]:
++            if mode == 0:
++                tail += bytes((ch,))
++                while tail and not self.OPENER.startswith(tail):
++                    tail = tail[1:]
++                if tail == self.OPENER:
++                    mode, tail = 1, b''
++            elif ch == ord('>') and tail in self.names:
++                mode, tail = 0, b''
++            elif ch in self.WS and (not tail or tail in self.names):
++                if tail:
++                    mode = 2
++            elif mode == 1 and tail + bytes((ch,)) in self.prefixes:
++                tail += bytes((ch,))
++            else:
++                return None
++        return mode, tail
++
++    def _bits(self, state):
++        cached = self.cache.get(state)
++        if cached is not None:
++            return cached
++        mode, tail = state
++        size = 4 * ((self.vocab.n + 31) // 32)
++        if mode == 0:
++            bits = bytearray(b'\xff' * size)
++            # Only '=' can complete the opener and enter a name in one piece.
++            for i in self.vocab._tool_equals:
++                if self._step(state, i) is None:
++                    bits[i >> 3] &= ~(1 << (i & 7))
++            for i in range(self.vocab.n, size * 8):
++                bits[i >> 3] &= ~(1 << (i & 7))
++        else:
++            bits = bytearray(size)
++            first = set(self.WS if not tail or tail in self.names else b'')
++            if tail in self.names:
++                first.add(ord('>'))
++            if mode == 1:
++                first.update(n[len(tail)] for n in self.names if n.startswith(tail) and len(n) > len(tail))
++            for ch in first:
++                for i in self.vocab._tool_buckets.get(ch, ()):
++                    if i not in self.vocab.eos and self._step(state, i) is not None:
++                        bits[i >> 3] |= 1 << (i & 7)
++        result = bytes(bits)
++        self.cache[state] = result
++        return result
++
++    @staticmethod
++    def _intersect(a, b):
++        if b is None:
++            return a
++        if len(a) != len(b):
++            raise ValueError('tool-name mask vocabulary width differs from schema mask')
++        return bytes(x & y for x, y in zip(a, b))
++
++    def mask(self):
++        return self._intersect(self._bits(self.state), self.inner.mask() if self.inner else None)
++
++    def reply(self, drafts=None):
++        if self.failed:
++            raise ValueError(self.failed)
++        drafts = list(drafts or [])
++        inner_rows = None
++        if self.inner:
++            r = self.inner.reply(drafts)
++            parts = r.split()
++            if parts[0] == 'MK':
++                inner_rows = [base64.b64decode(parts[1])]
++            elif parts[0] == 'MKN':
++                inner_rows = [base64.b64decode(b) for b in parts[2:]]
++            elif parts[0] != 'MF':
++                raise ValueError('invalid schema mask reply')
++        rows, state = [], self.state
++        for row in range(len(drafts) + 1):
++            if inner_rows is not None and row >= len(inner_rows):
++                break
++            bits = self._intersect(self._bits(state), inner_rows[row] if inner_rows else None)
++            if not any(bits):
++                raise ValueError('tool-name and schema constraints allow no token')
++            rows.append(bits)
++            if row == len(drafts) or not Constraint.allowed(bits, drafts[row]):
++                break
++            state = self._step(state, drafts[row])
++            if state is None:
++                raise ValueError('accepted draft left tool-name mask')
++        self.masked += len(rows)
++        encoded = [base64.b64encode(b).decode('ascii') for b in rows]
++        return 'MK ' + encoded[0] if len(rows) == 1 else f'MKN {len(rows)} ' + ' '.join(encoded)
++
++    def feed(self, token):
++        state = self._step(self.state, token)
++        if state is None:
++            self.failed = 'engine emitted a token outside the declared tool names'
++            raise ValueError(self.failed)
++        self.state = state
++        if self.inner:
++            self.inner.feed(token)
++            if self.inner.failed not in (None, 'tool call'):
++                raise ValueError('schema mask failed; strict tool mode refuses free decoding')
++
++    def observe(self, ids):
++        for token in ids:
++            self.feed(token)
++
++    def mock_replay(self, script, max_new, cancel, delay=0.0):
++        # The production engine samples these same packed masks. The mock drops
++        # script tokens that violate them, then emits a shortest valid completion.
++        import time
++        script = iter(script)
++        for _ in range(max_new):
++            if cancel.is_set():
++                return
++            if delay:
++                time.sleep(delay)
++            bits = self.mask()
++            token = next((t for t in script if Constraint.allowed(bits, t)), None)
++            if token is None:
++                token = next((t for t in self.vocab.eos if Constraint.allowed(bits, t)), None)
++                if token is None:
++                    token = next((i for i in range(self.vocab.n)
++                                  if Constraint.allowed(bits, i) and self._step(self.state, i) != self.state), None)
++            if token is None:
++                raise ValueError('strict tool-name mock cannot complete the turn')
++            self.feed(token)
++            yield token
++            if token in self.vocab.eos:
++                return
+diff --git a/serve/fake_mask_engine.py b/serve/fake_mask_engine.py
+new file mode 100644
+index 00000000..858eae7e
+--- /dev/null
++++ b/serve/fake_mask_engine.py
+@@ -0,0 +1,89 @@
++"""serve/fake_mask_engine.py - a stand-in for `strata --serve` that speaks the token-mask protocol, for tests.
++
++    python serve/fake_mask_engine.py --serve [--no-mask] [--max-context N]
++
++The byte tokenizer's ids (serve.server.ByteTokenizer: one id per byte, <|im_end|> = 257).  Each GEN answers with the
++script in the file $FAKE_SCRIPT_FILE, read again at every GEN (or the text in $FAKE_SCRIPT; the end-of-turn token
++is added), one token per window.  With `mask=1` on GEN it prints
++`MQ` before every window and reads the answer: under `MK <base64>` it drops the script tokens the mask forbids (the
++way serve/constrain.Constraint.mock_replay does, written again here so the two are independent), under `MF cut=...`
++it honours nothing more than one token per window.  --no-mask: an older engine (no token_mask=1 in INFO; mask=1 is
++then an unknown key it skips).  Every MQ answer is appended to $FAKE_LOG when set.
++"""
++import base64
++import os
++import sys
++
++IM_END, ENDOFTEXT = 257, 258
++
++
++def allowed(words: bytes, t: int) -> bool:
++    w = t >> 5
++    return 4 * w + 4 <= len(words) and (int.from_bytes(words[4 * w:4 * w + 4], "little") >> (t & 31)) & 1 == 1
++
++
++def main() -> int:
++    mask_ok = "--no-mask" not in sys.argv
++    ctx = int(sys.argv[sys.argv.index("--max-context") + 1]) if "--max-context" in sys.argv else 4096
++    print(f"INFO context={ctx} kv=fp16{' token_mask=1' if mask_ok else ''} engine=fake", flush=True)
++    print(f"READY {ctx} stop", flush=True)
++    log = os.environ.get("FAKE_LOG")
++    stdin = sys.stdin
++    for line in stdin:
++        line = line.rstrip("\r\n")
++        if line == "QUIT":
++            return 0
++        if line == "STOP" or not line.startswith("GEN "):
++            continue
++        f = line.split()
++        max_new = int(f[1])
++        keys = {k: v for k, _, v in (x.partition("=") for x in f[2:-1]) if _}
++        masked = mask_ok and keys.get("mask") == "1"
++        prompt = f[-1].split(",")
++        path = os.environ.get("FAKE_SCRIPT_FILE")
++        text = open(path, encoding="utf-8").read() if path else os.environ.get("FAKE_SCRIPT") or ""
++        script = list(text.encode()) + [IM_END]
++        print(f"REUSED 0", flush=True)
++        i, n, finish = 0, 0, "length"
++        while n < max_new:
++            words = None
++            if masked:
++                print("MQ", flush=True)
++                rep, stopped = stdin.readline().rstrip("\r\n"), False
++                while rep == "STOP":                  # the engine's reader thread takes STOP aside (stop_req)
++                    stopped = True
++                    rep = stdin.readline().rstrip("\r\n")
++                if log:
++                    with open(log, "a", encoding="utf-8") as fh:
++                        fh.write(rep[:2] + "\n")
++                if rep.startswith("MK "):
++                    words = base64.b64decode(rep[3:])
++                elif not rep.startswith("MF"):
++                    print(f"ERR expected MK or MF after MQ, got: {rep[:40]}", flush=True)
++                    break
++                if stopped:
++                    finish = "cancel"
++                    break
++            t = None
++            while i < len(script):
++                c = script[i]
++                i += 1
++                if words is None or allowed(words, c):
++                    t = c
++                    break
++            if t is None:
++                if words is not None and (allowed(words, IM_END)):
++                    t = IM_END
++                else:
++                    break
++            print(f"T {t}", flush=True)
++            n += 1
++            if t in (IM_END, ENDOFTEXT):
++                finish = "stop"
++                break
++        print(f"DONE {n} {len(prompt)} 1.0 1.0 {finish} 0 0 0 0 0 0 0 0.0 {len(prompt)} 0", flush=True)
++    return 0
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+diff --git a/serve/responses.py b/serve/responses.py
+index d5ea4cd0..6b638b95 100644
+--- a/serve/responses.py
++++ b/serve/responses.py
+@@ -32,6 +32,12 @@ from serve.frontend import Event, _late_system_to_user, _parts_of, effort_kwargs
+ ENCRYPTED_PREFIX = "strata.r1:"                   # our own reasoning replay strings; others' are ignored
+ HOSTED_TOOLS = ("web_search", "web_search_preview", "file_search", "computer_use_preview", "computer_use",
+                 "code_interpreter", "image_generation", "local_shell", "mcp", "tool_search")
++# T2c (spec item 2): the request key the custom tool grammar entries ride on (see request_tools).  The
++# route hands it to constrain.grammar() as {"type": "custom_calls", "entries": <this list>} and builds
++# Constraint(..., custom_calls=True) - it does NOT go through format_of (there the type is unknown and
++# the request would fall to the bare-call branch).  An underscore key: never echoed in a response, and
++# the engine's sampling merge ignores it the way it ignores the constraint's own key.
++CUSTOM_CALLS_KEY = "_strata_custom_calls"
+ 
+ 
+ class ResponsesError(ValueError):
+@@ -234,8 +240,13 @@ def _order_tool_results(messages):
+ 
+ 
+ def request_tools(req: dict):
+-    """-> (template tools or None, {template name: (namespace, name, kind)}, names of hosted tools left out)."""
++    """-> (template tools or None, {template name: (namespace, name, kind)}, names of hosted tools left out).
++
++    A custom tool with a grammar also records its entry ({name, definition}) under CUSTOM_CALLS_KEY on
++    `req` (T2c): the same request dict the route later passes as the sampling dict, so the constraint
++    route finds the entries there and binds them through constrain.grammar()'s custom_calls branch."""
+     tools, names, skipped = [], {}, []
++    entries = []                                     # custom_calls entries: {name, definition} (T2c)
+     given = req.get("tools") or []
+     if not isinstance(given, list):
+         raise ResponsesError("tools must be an array", "tools")
+@@ -260,7 +271,14 @@ def request_tools(req: dict):
+         else:                                        # custom: free-form text, maybe in a grammar the model reads
+             fmt = tool.get("format") or {}
+             if isinstance(fmt, dict) and fmt.get("type") == "grammar" and fmt.get("definition"):
+-                description += f"\n\nThe input must follow this {fmt.get('syntax', '')} grammar:\n{fmt['definition']}"
++                definition = fmt["definition"]
++                description += f"\n\nThe input must follow this {fmt.get('syntax', '')} grammar:\n{definition}"
++                # T2c (spec item 2): the same definition also binds the call body - the entry goes to the
++                # request's custom_calls list (the names this server cannot parse are dropped later by
++                # grammar()'s _NAME_SAFE filter; the prefix-pair exclusion lives there too).  A definition
++                # that is not a string stays the prompt directive only.
++                if isinstance(definition, str):
++                    entries.append({"name": flat, "definition": definition})
+             params = {"type": "object", "properties": {"input": {"type": "string", "description": "the raw input"}},
+                       "required": ["input"]}
+         tools.append({"name": flat, "description": description, "parameters": params})
+@@ -283,6 +301,9 @@ def request_tools(req: dict):
+             skipped.append(kind)                     # the model cannot run OpenAI's hosted tools: left out
+         else:
+             raise ResponsesError("a tool needs a type", param + ".type")
++    if entries:                                      # T2c: the grammar entries ride on the request itself
++        req[CUSTOM_CALLS_KEY] = entries              # (the same dict the route passes as the sampling dict);
++        # no custom grammar: no key at all - the request shape stays exactly as it was
+     choice = req.get("tool_choice")
+     if choice == "none":
+         return None, names, skipped
+diff --git a/serve/server.py b/serve/server.py
+index 01b76471..730641ca 100644
+--- a/serve/server.py
++++ b/serve/server.py
+@@ -84,6 +84,7 @@ from serve import launch_identity  # noqa: E402
+ from serve import logit_bias as bias_api  # noqa: E402
+ from serve import lifeline  # noqa: E402
+ from serve.structured import StructuredOutputError, prepare_format, validated_json, extract_json  # noqa: E402
++from serve import constrain  # noqa: E402   (constrained decoding: token masks, optional llguidance)
+ from serve import responses as responses_api  # noqa: E402
+ from serve.responses import ResponsesError, error_body as responses_error_body  # noqa: E402
+ from serve import images as images_api  # noqa: E402
+@@ -415,12 +416,17 @@ class MockEngine:
+     def generate(self, ids, max_new, sampling, cancel, embeddings=None):
+         self.last_prompt = list(ids)
+         self.last_embeddings = embeddings
++        self.last_sampling_constraint = (sampling or {}).get(constrain.KEY)
+         if len(self.scripts) > 1:
+             if self.cycle:
+                 self.script = self.scripts[self.turns % len(self.scripts)]
+             else:
+                 self.script = self.scripts[min(self.turns, len(self.scripts) - 1)]
+             self.turns += 1
++        c = (sampling or {}).get(constrain.KEY) if getattr(self, "supports_mask", False) else None
++        if c is not None:                                   # tests: MockEngine.supports_mask = True
++            yield from c.mock_replay(self.script, max_new, cancel, self.delay)
++            return
+         for t in self.script[:max_new]:
+             if cancel.is_set():
+                 return
+@@ -1637,6 +1643,22 @@ class StrataEngine:
+             if time.time() > deadline:
+                 raise EngineDied("the engine did not answer the VRAM command")
+ 
++    @property
++    def supports_mask(self) -> bool:
++        """The engine takes a token mask per window (INFO token_mask=1, serve/constrain.py); not with batch slots.
++        token_mask=2 also means it can mask a whole MTP window (MQ with drafts -> MKN); the server answers both."""
++        return str((getattr(self, "info", None) or {}).get("token_mask", 0)) in ("1", "2") \
++            and not getattr(self, "batch", 0)
++    def _mask_reply(self, c, line="MQ"):
++        # "MQ d1 d2 ..." (token_mask=2): the drafts become the multi-row lookahead (serve/constrain.py 1-2);
++        # a bare "MQ" is answered as before, so an older engine never sees MKN.
++        drafts = [int(w) for w in line.split()[1:] if w.lstrip("-").isdigit()]
++        line = "MF" if c is None else c.reply(drafts=drafts or None)
++        try:
++            self.proc.stdin.write(line + "\n")
++            self.proc.stdin.flush()
++        except OSError:                                  # the pipe is gone: the engine died (not the client)
++            raise EngineDied(f"the engine stopped unexpectedly (exit code {self.exit_code()})") from None
+     def pen_from_key(self, orig_len: int, prompt_len: int) -> str:
+         """` pen_from=N` for a leg that continues a request (prompt + what it generated): where the reply began, Strata's penalty window start. The all-cards split engine
+         (sFNX) counts its penalty window over the last penalty_last_n tokens of the whole context, so the continued prompt gives it the same window and the engine refuses the
+@@ -2754,6 +2776,11 @@ class StrataEngine:
+         rid_key = f" rid={rid}" if rid is not None else ""
+         head = f"GENI {int(max_new)}{self.sampling_keys(sampling or {})}{rid_key} {embeddings}" if embeddings else \
+             f"GEN {int(max_new)}{self.sampling_keys(sampling or {})}{rid_key}"
++        head = f"GENI {int(max_new)}{self.sampling_keys(sampling or {})} {embeddings}" if embeddings else \
++            f"GEN {int(max_new)}{self.sampling_keys(sampling or {})}"
++        c = (sampling or {}).get(constrain.KEY) if self.supports_mask and not embeddings else None
++        if c is not None:
++            head += " mask=1"                               # the engine asks MQ before every window
+         if prefill_only:                                 # split serving (serve/split.py): read the prompt, make no token
+             if embeddings or int(max_new) != 0:
+                 raise ValueError("prefill_only is a text prompt and max_new 0")
+@@ -2811,13 +2838,21 @@ class StrataEngine:
+                     raise EngineDied(f"the engine stopped unexpectedly (exit code {self.exit_code()})")
+                 heard = time.monotonic()                  # any line is output: T, PP, RESUME, INFO ...
+                 beat = heard
++                
+                 if stall_state:
+                     stall_state.clear()
++                    
++                if line.startswith("MQ"):                           # serve/constrain.py: the mask for the next window
++                    self._mask_reply(c, line)
++                    continue
++
+                 if line.startswith("T "):
+                     allow = silence
+                     if cancel.is_set():
+                         return
+                     t = int(line[2:])
++                    if c is not None:
++                        c.feed(t)
+                     if want_lp:
+                         # the engine writes the token and its `LP` line in one flush, so the line is
+                         # here now; an engine without logprobs leaves the next line a normal one
+@@ -2882,6 +2917,9 @@ class StrataEngine:
+                     except queue.Empty:
+                         raise self._silent("the engine did not finish the request after it was stopped (STOP) "
+                                            f"within {allow:.0f} s") from None
++                    if line is not None and line.startswith("MQ"):   # stopped: it still waits for an answer
++                        self._mask_reply(None)
++                        continue
+                     if line is None or line.startswith("ERR"):
+                         break
+                     if line.startswith("DONE"):
+@@ -4880,6 +4918,74 @@ class Service:
+             self.prompts = PromptEncoder(tokenizer, keep=slots) if slots is not None and slots > 0 \
+                 else PromptEncoder(tokenizer)
+ 
++    def mask_available(self) -> bool:
++        """The engine takes token masks and llguidance is importable: a JSON response format is worth
++        wiring even with tools (the answer|calls grammar masks the turn).  Bare test engines without
++        the INFO key fall back to the prompt directive and the validation after the turn."""
++        return bool(getattr(self.engine, "supports_mask", False)) and constrain.available()
++
++    def _with_constraint(self, sampling, tools, thinking, force=None):
++        """A JSON response format on an engine that takes token masks: the request's sampling with a fresh
++        serve/constrain.Constraint for this pass (the schema, and with tools also a tool call).  Anything else -
++        no format, an older engine, llguidance missing, a schema llguidance cannot compile - leaves it as it was:
++        the prompt directive and the validation after the turn."""
++        fmt = constrain.format_of(sampling) if isinstance(sampling, dict) else None
++        strict_tools = bool(tools) and os.environ.get("STRATA_TOOL_MASK_STRICT") == "1"
++        if strict_tools:
++            if not getattr(self.engine, "supports_mask", False) or not constrain.available():
++                raise ValueError("strict tool-name masking requires a token-mask engine and llguidance")
++            if getattr(self, "family", None) == "deepseek41":
++                raise ValueError("strict tool-name masking currently supports Qwen XML tools only")
++            vocab = self.__dict__.get("_llg_vocab")
++            if vocab is None:
++                vocab = self.__dict__.setdefault("_llg_vocab", constrain.Vocab(self.tok, self.stop_ids))
++            names = constrain.safe_tool_names(tools)
++            if len(names) != len(tools):
++                raise ValueError("strict tool names must be unique ASCII identifiers")
++            inner = None
++            if fmt is not None and force is None:
++                inner = constrain.Constraint(vocab, constrain.grammar(fmt, True, vocab), armed=not thinking)
++            guard = constrain.ToolNameConstraint(vocab, names, inner=inner)
++            if force is not None:
++                guard.observe(self.tok.encode(self.force_text(force), parse_special=True))
++            return {**(sampling or {}), constrain.KEY: guard}
++        bare_tools = bool(tools) and os.environ.get("STRATA_TOOL_MASK") == "1"
++        if (fmt is None and not bare_tools) or force is not None:
++            # a forced tool_choice appends the call's opening tag to the prompt; the grammar starts at that
++            # tag and would wait for one that is already there - the directive and the validation stand in
++            return sampling
++        if not getattr(self.engine, "supports_mask", False):
++            constrain.note_once("constrained decoding off: the engine does not take token masks (an engine with "
++                                "token_mask=1 or 2 in its INFO line is needed); JSON is validated after the turn")
++            return sampling
++        if not constrain.available():
++            constrain.note_once("constrained decoding off: python -m pip install llguidance to turn it on; JSON is "
++                                "validated after the turn")
++            return sampling
++        try:
++            vocab = self.__dict__.get("_llg_vocab")
++            if vocab is None:
++                vocab = self.__dict__.setdefault("_llg_vocab", constrain.Vocab(self.tok, self.stop_ids))
++            # T3a opt-in (default off): STRATA_TOOL_NAME_ENUM=1 enumerates the request's declared tool names
++            # in the grammar.  The names come from the very tools array this request rendered (the same
++            # template_tools()/openai_tools() result the route built) - never from a later routes() call.
++            names = constrain.safe_tool_names(tools) if os.environ.get("STRATA_TOOL_NAME_ENUM") == "1" else []
++            if fmt is None and os.environ.get("STRATA_TOOL_MASK") == "1" and tools:
++                # T6 (bare tool calls, opt-in): no JSON format but tools are offered - constrain the call
++                # itself: a tag (or '<tool_call' text) can only arrive through the calls branch, where the
++                # name sits behind the enum and the separator frees the turn; prose stays possible (it just
++                # cannot START with '<' - a '<' later in the text is free, measured).  The call body after
++                # the name stays the free REST (the parser reads it, v3 lesson); thinking turns are unarmed
++                # as with the format path.  A prose turn under the mask costs the valid-UTF-8 character set
++                # (a byte vocabulary's invalid single bytes stay masked - measured 82/263) until the EOS.
++                fmt = {"type": "bare"}                      # grammar(None, ...) = the bare-call grammar
++            c = constrain.Constraint(vocab, constrain.grammar(None if fmt == {"type": "bare"} else fmt, bool(tools), vocab, tool_names=names or None),
++                                     armed=not thinking, name_enum=bool(names))
++        except Exception as e:                           # noqa: BLE001 - an unsupported schema keyword, a vocab problem
++            constrain.note_once(f"constrained decoding off for a request: {str(e).splitlines()[0][:200]}")
++            return sampling
++        constrain.note_once("constrained decoding on: JSON answers are masked token by token (llguidance)")
++        return {**sampling, constrain.KEY: c}
+     def set_family(self, family: str | None) -> None:
+         """A family whose text differs from the Qwen form this server was written for (DeepSeek-V4.1: its own end
+         token, DSML tool calls, reasoning-effort words).  The others keep the defaults."""
+@@ -5756,7 +5862,9 @@ class Service:
+             "service": "strata", "model": self.model,
+             "loaded": self.loaded(), "auto_load": hasattr(self.engine, "restart"),
+             "structured_output": {"formats": ["json_object", "json_schema"], "method": "prompt_and_validate",
+-                                  "constrained_decoding": False, "stream_buffered": True},
++                                  "constrained_decoding": bool(getattr(self.engine, "supports_mask", False) and constrain.available()),
++                                  "tools_with_json": self.mask_available(),   # /v1/chat/completions takes tools + a JSON format together when the mask is on
++                                  "stream_buffered": True},
+             "engine": (getattr(self.engine, "info", {}) or {}).get("version"),
+             "started": int(self.started_at), "uptime_s": int(time.time() - self.started_at),
+             "cache_max_tokens": ctx,
+@@ -6256,7 +6364,8 @@ class Service:
+                 out.append(ev)
+             return out
+         opening = []                                    # without thinking the prompt ends with the forced opening:
+-        if force and not thinking:                      # the parser reads it as if the model had written it
++        forced = force                                  # a forced call keeps the mask unarmed even once the
++        if force and not thinking:                      # opening has been fed (see _with_constraint)
+             opening, force = parser.feed(force), None
+         tail = ""                                       # the last characters written (the newlines before a call)
+         answered, close_retried = False, False          # #1053: content or a call came out; the thinking was closed
+@@ -6374,6 +6483,7 @@ class Service:
+                     prompt, thought = ids, 0            # thought: the reasoning tokens so far (the budget's count)
+                     for ev in opening:
+                         yield "event", ev
++                    sampling = self._with_constraint(sampling, tools, thinking, force=forced)   # serve/constrain.py (or unchanged)
+                     while True:
+                         segment_before = getattr(self.engine, "last", None)
+                         segments_before = len(segments)     # (#879: a pass sent again leaves no segment)
+@@ -6557,6 +6667,8 @@ class Service:
+                                     for ev in evs:
+                                         yield "event", ev
+                                 prompt = prompt + seg + extra
++                                if (sampling or {}).get(constrain.KEY) is not None:
++                                    sampling[constrain.KEY].observe(extra)
+                                 finish = "length"
+                                 continue
+                         if not (wrap or opens) or cancel.is_set():
+@@ -6590,6 +6702,8 @@ class Service:
+                             finish = "stop"
+                             break
+                         prompt = prompt + seg + extra
++                        if (sampling or {}).get(constrain.KEY) is not None:
++                            sampling[constrain.KEY].observe(extra)       # the wrap-up ends in </think>: the answer is constrained
+                     if cancel.is_set():
+                         finish = "cancel"
+                     elif looped:
+@@ -7342,6 +7456,12 @@ def structured_chunks(chunks, validator):
+                 yield chunk if progress else None
+         result = openai_collect(buffered)
+         choice = result["choices"][0]
++        if choice.get("finish_reason") == "tool_calls" or choice["message"].get("tool_calls"):
++            # a turn that calls a tool is not the final answer: the schema validates the answer, not the
++            # call (the same reading as /v1/responses #782) - pass the call through as it came
++            for chunk in buffered:
++                yield chunk
++            return
+         content = validated_json(choice["message"]["content"], validator, choice["finish_reason"])
+         # logprobs: the entries spell what the model wrote, which this function replaces with the
+         # canonical JSON.  `_structured_logprobs` gives back the form the tokens spell, or None.
+@@ -8589,8 +8709,12 @@ def make_handler(svc: Service):
+             if tool_choice_of(req.get("tool_choice"))[0] == "none":   # as the Responses route: no tools are offered
+                 tools = None
+             force = svc.force_text(forced_call(req.get("tool_choice"), tools))      # a bad value is a 400 before anything is sent
+-            messages, validator = prepare_format(req.get("response_format"), messages)
+-            if validator is not None and (tools or req.get("strata_mcp")):
++            wants_tools = bool(tools) or req.get("strata_mcp") is True
++            # a JSON format with tools: on an engine that takes token masks the answer|calls grammar masks
++            # the turn (the call goes through, the schema binds the final answer, as on /v1/responses #782);
++            # anywhere else the prompt directive cannot tell a call turn from an answer, so the old 400 stays
++            messages, validator = prepare_format(req.get("response_format"), messages, with_tools=wants_tools)
++            if validator is not None and wants_tools and not svc.mask_available():
+                 raise ValueError("structured response_format with tools/MCP is not supported")
+             svc.load()
+             max_req = max_new = int(req.get("max_completion_tokens") or req.get("max_tokens") or 0)   # 0/-1: the rest
+diff --git a/serve/structured.py b/serve/structured.py
+index 1809a0c3..02fbe86d 100644
+--- a/serve/structured.py
++++ b/serve/structured.py
+@@ -128,6 +128,14 @@ def prepare_format(response_format, messages, with_tools=False):
+     kind = response_format.get("type")
+     if kind == "text":
+         return messages, None
++    if kind == "lark":
++        # serve/constrain.py's passthrough (T1) builds the grammar into a token mask downstream; there is
++        # nothing to add to the prompt and nothing to validate after the turn - a grammar that cannot be
++        # built there drops to free decoding, never an error here.  Without a grammar there is no format.
++        grammar = response_format.get("grammar")
++        if not isinstance(grammar, str) or not grammar:
++            raise ValueError("response_format.lark needs a non-empty grammar string")
++        return messages, None
+     if kind == "json_object":
+         schema = {"type": "object"}
+         modules = None                 # the standard library is enough for "one JSON object"
+diff --git a/serve/test_constrain.py b/serve/test_constrain.py
+new file mode 100644
+index 00000000..32e5291f
+--- /dev/null
++++ b/serve/test_constrain.py
+@@ -0,0 +1,951 @@
++"""serve/test_constrain.py - constrained decoding (serve/constrain.py) without a GPU:
++  * the grammar and the masks themselves (llguidance over the byte tokenizer),
++  * MockEngine under a mask over HTTP (chat and Responses, with tools, with thinking),
++  * the engine protocol (GEN mask=1 / MQ / MK / MF) against serve/fake_mask_engine.py, a stand-in `strata --serve`.
++Skipped without llguidance (python -m pip install llguidance).
++
++    python -m unittest serve.test_constrain -v
++"""
++from __future__ import annotations
++import base64
++import json
++import os
++import stat
++import sys
++import tempfile
++import threading
++import unittest
++import urllib.error
++import urllib.request
++from pathlib import Path
++
++from serve import constrain as C
++from serve import frontend as FE
++from serve import responses as R
++from serve.frontend import ChatTemplate
++from serve.server import IM_END, ByteTokenizer, MockEngine, Service, StrataEngine, serve
++
++ROOT = Path(__file__).resolve().parents[1]
++TEMPLATE = ChatTemplate(ROOT / "serve/chat_template.jinja")
++need = unittest.skipUnless(C.available(), "llguidance is not installed")
++SCHEMA = {"type": "object", "properties": {"n": {"type": "integer"}}, "required": ["n"], "additionalProperties": False}
++FMT = {"type": "json_schema", "json_schema": {"name": "num", "strict": True, "schema": SCHEMA}}
++TEXT_FMT = {"type": "json_schema", "name": "num", "strict": True, "schema": SCHEMA}
++TOOLS = [{"type": "function", "name": "exec_command", "description": "Runs a command.", "strict": False,
++          "parameters": {"type": "object", "properties": {"cmd": {"type": "string"}}, "required": ["cmd"]}}]
++CALL = ("Let me look.\n</think>\n\nChecking.\n\n<tool_call>\n<function=exec_command>\n<parameter=cmd>\ncat a.txt\n"
++        "</parameter>\n</function>\n</tool_call>")
++
++
++# --- T3d: the mock tokenizer with <tool_call> as ONE special token, as the real Qwen vocabulary has it
++# (the server's ByteTokenizer stand-in has no tag token, so vocab.single(TOOL_CALL) -> None there and a
++# name-enumerated call can never feed the tag as one token; appended last, existing ids are unchanged).
++class TagTokenizer(ByteTokenizer):
++    SPECIALS = ByteTokenizer.SPECIALS + ["<tool_call>"]
++
++
++# ------------------------------------------------------------------------------------------------ the masks
++@need
++class Masks(unittest.TestCase):
++    tok = ByteTokenizer()
++
++    def setUp(self):
++        stop = set(self.tok.encode("<|im_end|>", parse_special=True) + self.tok.encode("<|endoftext|>", parse_special=True))
++        self.stop = stop                                  # saved for enum_setup (additive, no behavior change)
++        self.vocab = C.Vocab(self.tok, stop)
++
++    def replay(self, script, tools=False, armed=True, rf=FMT):
++        c = C.Constraint(self.vocab, C.grammar(rf, tools, self.vocab), armed)
++        ids = self.tok.encode(script, parse_special=True) + self.tok.encode("<|im_end|>", parse_special=True)
++        out = list(c.mock_replay(ids, 400, threading.Event()))
++        return c, self.tok.decode([t for t in out if t not in self.vocab.eos])
++
++    def test_prose_and_wrong_types_cannot_get_out(self):
++        for s, want in (('{"n": 3}', {"n": 3}), ('Sure! {"n": 3} hope that helps', {"n": 3}),
++                        ('{"n": "3"}', {"n": 3}), ('{"n": 3, "extra": true}', {"n": 3})):
++            with self.subTest(s=s):
++                c, text = self.replay(s)
++                self.assertEqual(json.loads(text), want)
++                self.assertIsNone(c.failed)
++
++    def test_tool_call_only_with_tools(self):
++        call = CALL[CALL.index("<tool_call>"):]
++        self.assertEqual(self.replay(call, tools=True)[1], call)
++        self.assertNotIn("<tool_call>", self.replay(call, tools=False)[1])
++
++    def test_thinking_is_free_and_the_window_is_cut_at_its_end(self):
++        c, text = self.replay('plan {x}</think>\n\n{"n": 5}', armed=False)
++        self.assertTrue(text.startswith("plan {x}</think>"))
++        self.assertEqual(json.loads(text.split("</think>")[1]), {"n": 5})
++        c = C.Constraint(self.vocab, C.grammar(FMT, False, self.vocab), armed=False)
++        self.assertEqual(c.reply(), "MF cut=" + ",".join(map(str, self.vocab.cut)))
++        for t in self.tok.encode("x</think>"):
++            c.feed(t)
++        reply = c.reply()
++        self.assertTrue(reply.startswith("MK "))
++        bits = base64.b64decode(reply[3:])
++        self.assertEqual({v for v in range(self.vocab.n) if C.Constraint.allowed(bits, v)},
++                         {ord(ch) for ch in " \t\r\n{"})
++
++    # --- the MTP window lookahead (1-1 / 1-2): MQ d... -> MKN rows, state restored ---
++    def draft_reply(self, script, drafts):
++        """One Constraint fed `script` (the tokens accepted so far), then asked with `drafts` -> (constraint, reply)."""
++        c = C.Constraint(self.vocab, C.grammar(FMT, False, self.vocab), armed=True)
++        for t in self.tok.encode(script, parse_special=True):
++            c.feed(t)
++        return c, c.reply(drafts)
++
++    def db(self, s):
++        return self.tok.encode(s, parse_special=True)
++
++    def test_1_state_matches_after_the_lookahead_rolls_back(self):
++        for script, drafts in (("", self.db('{"n": 3}')), ('{"n"', self.db(": 3}")),
++                               ('{"n": 12', self.db("34}"))):
++            with self.subTest(script=script):
++                c, _ = self.draft_reply(script, drafts)
++                before = c.m.compute_bitmask()
++                c.reply(drafts)                              # the lookahead consumes, then rolls back
++                self.assertEqual(c.m.compute_bitmask(), before)
++                self.assertIsNone(c.failed)
++
++    def test_2_all_drafts_match_gives_one_row_per_token(self):
++        c, reply = self.draft_reply('{"n"', self.db(": 3}"))
++        self.assertTrue(reply.startswith("MKN "), reply[:24])
++        rows = int(reply.split()[1])
++        self.assertEqual(rows, len(self.db(": 3}")) + 1)
++        self.assertEqual(len(reply.split()) - 2, rows)       # one b64 word list per row
++        self.assertIsNone(c.failed)
++
++    def test_3_draft_that_leaves_the_grammar_stops_at_k_plus_1_rows(self):
++        drafts = self.db(' "zz"')                            # the string value breaks the schema (n is an integer)
++        c, reply = self.draft_reply('{"n":', drafts)
++        self.assertTrue(reply.startswith("MKN "), reply[:24])
++        rows = int(reply.split()[1])
++        self.assertEqual(rows, 2)                            # k = 1 validated draft (' ' consumes, '"' is refused: bit 0 in the mask, validate_tokens also returns 1), so k+1 = 2 rows
++        self.assertEqual(len(reply.split()) - 2, rows)       # no row past the token that leaves the grammar
++        self.assertIsNone(c.failed)                          # a bad draft is not a failed turn
++        self.assertEqual(c.m.compute_bitmask(), c.mask())    # the state is still the head's
++
++    def test_4_draft_wrong_at_the_head_gives_a_single_MK_row(self):
++        c, reply = self.draft_reply('{"n"', self.db("3}"))   # after '"' the grammar wants ':', not '3'
++        self.assertTrue(reply.startswith("MK "), reply[:24]) # one row keeps the current MK form (1-3)
++        self.assertFalse(reply.startswith("MKN"))
++        self.assertIsNone(c.failed)
++
++    def test_6_rows_stop_when_the_grammar_is_finished(self):
++        drafts = self.db('3}"')                              # closes the object; anything after is outside the grammar
++        c, reply = self.draft_reply('{"n": ', drafts)
++        self.assertTrue(reply.startswith("MKN "), reply[:24])
++        rows = int(reply.split()[1])
++        self.assertEqual(rows, 2)                            # head + '3'; the row after '}' is cut (is_stopped)
++        self.assertEqual(len(reply.split()) - 2, rows)
++        for t in drafts[:2]:
++            self.assertTrue(c.m.consume_tokens([t]))
++        self.assertTrue(c.m.is_stopped())                    # the closing brace ends the grammar
++        self.assertIsNone(c.failed)
++
++    def test_7_an_old_engine_gets_the_unchanged_single_MK_row(self):
++        c = C.Constraint(self.vocab, C.grammar(FMT, False, self.vocab), armed=True)
++        for t in self.tok.encode('{"n"', parse_special=True):
++            c.feed(t)
++        reply = c.reply()                                    # an engine that knows only MK sends no drafts
++        self.assertTrue(reply.startswith("MK "), reply[:24])
++        self.assertFalse(reply.startswith("MKN"))
++        self.assertEqual(len(reply.split()), 2)              # "MK" + one b64 word - the answer form is unchanged
++        self.assertEqual(len(base64.b64decode(reply[3:])), len(c.m.compute_bitmask()))
++        self.assertIsNone(c.failed)
++
++    def test_8_after_giving_the_mask_up_a_draft_window_is_MF(self):
++        c = C.Constraint(self.vocab, C.grammar(FMT, False, self.vocab), armed=True)
++        c.feed(ord("x"))                                     # outside the mask -> failed ("give up")
++        self.assertIsNotNone(c.failed)
++        self.assertEqual(c.reply(self.db('{"n": 3}')), "MF") # even with drafts: no MK, no MKN
++        c2 = C.Constraint(self.vocab, C.grammar(FMT, True, self.vocab), armed=True)
++        if c2.tool_call is not None:                         # only when the tokenizer has one token for the tag
++            c2.feed(c2.tool_call)                            # a tool call also gives the mask up
++            self.assertIsNotNone(c2.failed)
++            self.assertEqual(c2.reply(self.db("cat")), "MF")
++
++    def test_a_token_outside_the_mask_gives_the_mask_up(self):
++        c = C.Constraint(self.vocab, C.grammar(FMT, False, self.vocab), armed=True)
++        c.feed(ord("x"))                                     # an engine that ignored the mask
++        self.assertIsNotNone(c.failed)
++        self.assertEqual(c.reply(), "MF")
++
++    # --- T3b: the name enum (T3a opt-in, STRATA_TOOL_NAME_ENUM=1) ---
++    def enum_setup(self, names):
++        """A name-enumerated constraint over TOOLS' declared names + `names`, as the server builds it
++        when STRATA_TOOL_NAME_ENUM=1 (serve/server.py: grammar(..., tool_names=names), name_enum=True).
++        Built on a TagTokenizer vocab (the real Qwen vocabulary has <tool_call> as ONE special token;
++        the plain ByteTokenizer stand-in does not, so c.tool_call would be None there).  The class
++        attribute self.vocab stays the plain ByteTokenizer one for every other test."""
++        tool_names = C.safe_tool_names(TOOLS) + [n for n in names if n not in C.safe_tool_names(TOOLS)]
++        vt = C.Vocab(TagTokenizer(), self.stop)
++        c = C.Constraint(vt, C.grammar(FMT, True, vt, tool_names=tool_names),
++                         armed=True, name_enum=True)
++        return tool_names, c, vt
++
++    def feed_text(self, c, text, vocab=None):
++        for t in (vocab or self.vocab).tok.encode(text, parse_special=True):
++            c.feed(t)
++
++    def allowed_set(self, c, vocab=None):
++        vocab = vocab or self.vocab
++        bits = c.mask()
++        self.assertIsNotNone(bits)                           # the mask is still live here
++        return {v for v in range(vocab.n) if C.Constraint.allowed(bits, v)}
++
++    def test_the_name_enum_lists_the_declared_names(self):
++        tool_names, c, vt = self.enum_setup(["read_file"])
++        self.assertEqual(tool_names, ["exec_command", "read_file"])
++        self.assertIsNotNone(c.tool_call)                    # the TagTokenizer writes the tag as one special token
++        c.feed(c.tool_call)                                  # the tag sits in the grammar under name_enum
++        self.assertIsNone(c.failed)                          # the tag alone no longer frees the turn (T3a)
++        self.assertTrue(c.await_name)
++        after_tag = self.allowed_set(c, vt)
++        # the mask has shrunk to the declared names' first bytes (e / r) plus the optional WS? run
++        self.assertEqual({vt.bytes_of(t) for t in after_tag},
++                         {b"e", b"r", b" ", b"\t", b"\r", b"\n"})
++        self.feed_text(c, "exec", vt)                        # mid-name: the mask forces the continuation byte of the longest name
++        self.assertIsNone(c.failed)
++        self.assertTrue(c.await_name)
++        self.assertEqual({vt.bytes_of(t) for t in self.allowed_set(c, vt)}, {b"_"})
++
++    def test_the_rest_after_the_name_stays_free(self):
++        """Once the enumerated name is behind the matcher, the separator frees the turn: the mask opens,
++        failed='tool call', and a call with no closing tag still finishes - the parser reads the body as
++        it always did.  (On a byte vocabulary REST can never be fully free - the invalid single bytes stay
++        masked forever - so the release fires at the separator, one token later than _all_free did.)"""
++        tool_names, c, vt = self.enum_setup(["read_file"])
++        self.assertIsNotNone(c.tool_call)
++        c.feed(c.tool_call)                                  # the tag in the grammar (name_enum keeps it armed)
++        self.assertIsNone(c.failed)                          # the tag alone does not free the turn (T3a)
++        self.assertTrue(c.await_name)                        # the name is masked next
++        self.feed_text(c, "exec_command\n", vt)              # the declared name + the separator the NAME rule requires
++        self.assertEqual(c.failed, "tool call")              # the separator freed the turn (byte vocab: REST never fully free)
++        self.assertFalse(c.await_name)
++        self.assertIsNone(c.mask())                          # free for the rest of the turn
++        self.feed_text(c, "\n<parameter=cmd>ls -la")         # the body, closing tags missing - all free
++        self.assertEqual(c.reply(), "MF cut=" + ",".join(map(str, vt.cut)))  # free for the rest of the turn (test_8 form): no 502 path
++
++    def test_formats(self):
++        self.assertIsNone(C.format_of({}))
++        self.assertIsNone(C.format_of({"text": {"format": {"type": "text"}}}))
++        self.assertEqual(C.format_of({"text": {"format": TEXT_FMT}})["json_schema"]["schema"], SCHEMA)
++        self.assertEqual(json.loads(self.replay('ok {"a": [1]}', rf={"type": "json_object"})[1]), {"a": [1]})
++
++    # --- T1 (spec item 1): a lark response_format goes through grammar() to the matcher unchanged ---
++    def test_lark_grammar_builds_and_masks(self):
++        rf = {"type": "lark", "grammar": 'start: "yes" | "no"'}
++        self.assertEqual(C.format_of({"response_format": rf}), rf)      # accepted unchanged (the same dict)
++        vt = C.Vocab(TagTokenizer(), self.stop)                         # the T3d fixture vocabulary
++        g = C.grammar(rf, False, vt)                                    # the lark text straight through
++        c = C.Constraint(vt, g, armed=True)
++        self.assertIsNone(c.failed)
++        reply = c.reply()
++        self.assertTrue(reply.startswith("MK "), reply[:24])            # masked from the first token
++        bits = base64.b64decode(reply[3:])
++        self.assertEqual({vt.bytes_of(t) for t in range(vt.n) if C.Constraint.allowed(bits, t)},
++                         {b"y", b"n"})                                  # only the grammar's first letters
++        self.feed_text(c, "yes", vt)                                    # the word consumes to the end
++        self.assertIsNone(c.failed)
++        c2, text = self.replay("sure: yes", rf=rf)                      # prose outside the grammar is dropped
++        self.assertEqual(text, "yes")
++        self.assertIsNone(c2.failed)
++        with self.assertRaises(ValueError):                             # grammar()'s own guard
++            C.grammar({"type": "lark"}, False, vt)                      # lark without a grammar string
++
++
++# ------------------------------------------------------------------------ the lark response_format (spec item 1)
++class LarkFormat(unittest.TestCase):
++    """format_of's lark acceptance: a well-formed {type: "lark", grammar: "..."} passes through unchanged;
++    a malformed lark is treated exactly like an unknown type (None).  Pure dict logic - runs without
++    llguidance."""
++
++    def test_lark_is_accepted_as_is(self):
++        rf = {"type": "lark", "grammar": 'start: "a"'}
++        self.assertEqual(C.format_of({"response_format": rf}), rf)
++
++    def test_bad_lark_matches_the_unknown_type(self):
++        for rf in ({"type": "lark"},                                  # no grammar at all
++                   {"type": "lark", "grammar": ""},                   # empty string
++                   {"type": "lark", "grammar": 5},                    # not a string
++                   {"type": "lark", "grammar": None},
++                   {"type": "lark", "grammar": ["start: \"a\""]},     # list, not string
++                   {"type": "no-such-format"}):                       # the existing unknown type
++            with self.subTest(rf=rf):
++                self.assertIsNone(C.format_of({"response_format": rf}))
++
++
++# ------------------------------------------------------------------------------------------------ over HTTP
++class Http(unittest.TestCase):
++    tok = ByteTokenizer()
++
++    def start(self, engine):
++        self.engine = engine
++        self.svc = Service(engine, self.tok, TEMPLATE)
++        self.httpd = serve(self.svc, port=0)
++        self.base = f"http://127.0.0.1:{self.httpd.server_address[1]}"
++
++    def tearDown(self):
++        self.httpd.shutdown()
++        self.httpd.server_close()
++
++    def post(self, path, body):
++        req = urllib.request.Request(self.base + path, data=json.dumps(body).encode(),
++                                     headers={"Content-Type": "application/json"})
++        try:
++            r = urllib.request.urlopen(req, timeout=30)
++        except urllib.error.HTTPError as e:
++            r = e
++        with r:
++            return r.status, json.loads(r.read().decode())
++
++    def chat(self, **kw):
++        body = {"messages": [{"role": "user", "content": "a number"}], "response_format": FMT,
++                "reasoning_effort": "none", **kw}
++        return self.post("/v1/chat/completions", body)
++
++
++@need
++class MockUnderMask(Http):
++    def setUp(self):
++        engine = MockEngine(self.tok, 'Sure! {"n": "7"} done', max_context=16384)
++        engine.supports_mask = True
++        self.start(engine)
++
++    def test_prose_around_the_json_becomes_the_schema(self):
++        code, r = self.chat()
++        self.assertEqual(code, 200, r)
++        self.assertEqual(json.loads(r["choices"][0]["message"]["content"]), {"n": 7})
++        with urllib.request.urlopen(self.base + "/v1/status", timeout=10) as s:
++            self.assertTrue(json.loads(s.read())["structured_output"]["constrained_decoding"])
++
++    def test_without_the_mask_the_same_script_is_a_502(self):
++        self.engine.supports_mask = False
++        code, r = self.chat()
++        self.assertEqual((code, r["error"]["code"]), (502, "structured_output_failed"))
++
++    def test_thinking_stays_free(self):
++        self.engine.scripts = [self.tok.encode('Plan {x}.</think>\n\nSure {"n": 1}<|im_end|>', parse_special=True)]
++        self.engine.script = self.engine.scripts[0]
++        code, r = self.chat(reasoning_effort="high")
++        self.assertEqual(code, 200, r)
++        msg = r["choices"][0]["message"]
++        self.assertIn("Plan {x}.", msg.get("reasoning_content") or "")
++        self.assertEqual(json.loads(msg["content"]), {"n": 1})
++
++    def test_responses_tool_turn_then_masked_answer(self):
++        end = self.tok.encode("<|im_end|>", parse_special=True)
++        self.engine.scripts = [self.tok.encode(CALL, parse_special=True) + end,
++                               self.tok.encode('Read it.\n</think>\n\nHere: {"n": "3"}', parse_special=True) + end]
++        self.engine.script, self.engine.turns = self.engine.scripts[0], 0
++        user = {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "count"}]}
++        body = {"model": "m", "input": [user], "tools": TOOLS, "text": {"format": TEXT_FMT}, "store": False}
++        code, r = self.post("/v1/responses", body)
++        self.assertEqual(code, 200, r)
++        fc = [o for o in r["output"] if o["type"] == "function_call"]
++        self.assertEqual(len(fc), 1)
++        code, r = self.post("/v1/responses", {**body, "input": [user, *r["output"], {
++            "type": "function_call_output", "call_id": fc[0]["call_id"], "output": "3 lines"}]})
++        self.assertEqual(code, 200, r)
++        self.assertEqual(r["output"][-1]["content"][0]["text"], '{"n":3}')
++
++    # --- the same tool turn, but the answer comes out through the MTP window (MockUnderMask 拡張, 6b-1) ---
++    def test_9_multi_row_tool_turn_then_masked_answer(self):
++        engine = MTPWindowMock(self.tok, [CALL, 'Read it.\n</think>\n\nHere: {"n": "3"}'], max_context=16384)
++        engine.supports_mask = True
++        self.start(engine)
++        user = {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "count"}]}
++        body = {"model": "m", "input": [user], "tools": TOOLS, "text": {"format": TEXT_FMT}, "store": False}
++        code, r = self.post("/v1/responses", body)
++        self.assertEqual(code, 200, r)
++        fc = [o for o in r["output"] if o["type"] == "function_call"]
++        self.assertEqual(len(fc), 1)
++        code, r = self.post("/v1/responses", {**body, "input": [user, *r["output"], {
++            "type": "function_call_output", "call_id": fc[0]["call_id"], "output": "3 lines"}]})
++        self.assertEqual(code, 200, r)
++        self.assertEqual(r["output"][-1]["content"][0]["text"], '{"n":3}')
++        self.assertTrue(any(rep.startswith("MKN") for rep in engine.mask_log), engine.mask_log[:4])
++        obj, _ = engine.answer_json(self.tok)
++        self.assertEqual(obj, {"n": 3})
++
++    # --- 6b-2: 採用→feed の順序 — the server's state always matches the tokens that actually came out ---
++    def test_10_the_servers_state_matches_the_emitted_tokens(self):
++        engine = MTPWindowMock(self.tok, 'Sure! {"n": 7} done', max_context=16384)
++        engine.supports_mask = True
++        self.start(engine)
++        sampling = self.svc._with_constraint({"response_format": FMT}, None, False)
++        c = sampling[C.KEY]
++        emitted = list(engine.generate(self.tok.encode("hi"), 200, sampling, threading.Event()))
++        self.assertIsNone(c.failed)                              # every fed token was inside the grammar
++        self.assertTrue(c.m.is_stopped())                        # the state has consumed exactly the emitted JSON
++        obj, json_toks = engine.answer_json(self.tok)            # the emitted tokens up to the closing brace
++        self.assertEqual(obj, {"n": 7})
++        c2 = C.Constraint(c.vocab, C.grammar(FMT, False, c.vocab), armed=True)
++        for t in json_toks:                                      # the same tokens replayed into a fresh matcher
++            c2.feed(t)                                           # land on the same bitmask: state == emitted sequence
++            self.assertIsNone(c2.failed)
++        self.assertEqual(c2.m.compute_bitmask(), c.m.compute_bitmask())
++
++    # --- 6b-3: ドラフトが全部外れ続けても (rows=1 の連続) the output is still right ---
++    def test_11_drafts_that_always_miss_still_give_the_right_answer(self):
++        engine = MTPWindowMock(self.tok, 'Sure! {"n": "7"} done', max_context=16384)
++        engine.supports_mask = True
++        engine.reject = ord("}")                                 # '}' never leads a valid draft here -> every window is 1 row
++        self.start(engine)
++        code, r = self.chat()
++        self.assertEqual(code, 200, r)
++        self.assertEqual(json.loads(r["choices"][0]["message"]["content"]), {"n": 7})
++        self.assertGreater(len(engine.mask_log), 1)              # many windows, not one lucky lookahead
++        self.assertFalse(any(rep.startswith("MKN") for rep in engine.mask_log), engine.mask_log[:4])
++        self.assertTrue(all(rep.startswith("MK ") for rep in engine.mask_log if rep.startswith(("MK ", "MKN"))))
++
++    # --- T1 (spec item 1): a lark grammar llguidance cannot compile degrades to free decoding ---
++    def test_12_a_broken_lark_grammar_degrades_to_free_decoding(self):
++        """The _with_constraint fallback rides a broken lark the way T3b's ChatToolsWithJsonSchema run 3
++        rides a broken name-enum: the sampling carries no constraint and the script comes out verbatim
++        (free decoding - the 200 path, never a 502).  Exercised at the Service level (the test_10 way):
++        the HTTP route end-to-end needs serve/structured.py prepare_format to accept the lark type,
++        whose allowlist 400s every non-JSON type today - outside this card's edit scope (see the task
++        comment)."""
++        sampling = self.svc._with_constraint(
++            {"response_format": {"type": "lark", "grammar": "start: [[["}}, None, False)
++        self.assertNotIn(C.KEY, sampling)                              # the constraint was given up
++        emitted = list(self.engine.generate(self.tok.encode("hi"), 200, sampling, threading.Event()))
++        self.assertEqual(self.tok.decode(emitted), 'Sure! {"n": "7"} done' + IM_END)  # free, verbatim
++
++
++class MTPWindowMock(MockEngine):
++    """MockEngine extended with the MTP verify window (token_mask=2): every window it asks the server with
++    `MQ d1 d2 ...` (the next draft_n script tokens as drafts), reads the answer (MK / MKN <rows> ...) and feeds
++    the window the way the real engine does - the validated drafts (rows-1, checked against the row masks with a
++    matcher of its own), then its own pick under the last row.  A bare `MK` is a window where the head rejected
++    the drafts: only the head's token is fed.  mask_log keeps every answer the server sent, emitted the token
++    sequence the engine produced, in order."""
++
++    def __init__(self, tokenizer, script, max_context: int = 32768, draft_n: int = 4):
++        super().__init__(tokenizer, script, max_context)
++        self.draft_n = draft_n
++        self.reject = None                                  # when set, this token leads every draft (always rejected)
++        self.mask_log: list[str] = []
++        self.emitted: list[int] = []
++
++    def generate(self, ids, max_new, sampling, cancel, embeddings=None):
++        self.last_prompt = list(ids)
++        self.last_embeddings = embeddings
++        if len(self.scripts) > 1:
++            self.script = self.scripts[min(self.turns, len(self.scripts) - 1)]
++            self.turns += 1
++        c = (sampling or {}).get(C.KEY) if getattr(self, "supports_mask", False) else None
++        if c is None:
++            yield from super().generate(ids, max_new, sampling, cancel, embeddings)
++            return
++        i, out = 0, 0
++
++        def emit(t):
++            self.emitted.append(t)
++            return t
++
++        while out < max_new and not cancel.is_set():
++            drafts = list(self.script[i:i + self.draft_n])
++            if self.reject is not None:
++                drafts = [self.reject] + drafts             # a draft head the grammar never accepts
++            rep = c.reply(drafts=drafts or None)
++            self.mask_log.append(rep)
++            # rows-1 = the drafts the server's rows validated (1-2); a bare "MK" or "MF" is a one-token window
++            f = rep.split()
++            rows = int(f[1]) if rep.startswith("MKN") else 1
++            for _ in range(rows - 1):                       # adopt the validated drafts, in feed order
++                if i >= len(self.script):
++                    break
++                t = self.script[i]
++                i += 1
++                c.feed(t)
++                out += 1
++                yield emit(t)
++                if t in c.vocab.eos:
++                    return
++            # the head's token is picked under the window's last row (None: the window is free, "MF")
++            bits = base64.b64decode(f[-1]) if rep.startswith(("MK ", "MKN ")) else None
++            t = None
++            while i < len(self.script):
++                cand = self.script[i]
++                i += 1
++                if bits is None or C.Constraint.allowed(bits, cand):
++                    t = cand
++                    break
++            if t is None:                                   # the script ran out: end the turn if the grammar may
++                eos = next((e for e in c.vocab.eos if bits is None or C.Constraint.allowed(bits, e)), None)
++                ff = c.m.compute_ff_tokens() if bits is not None else []
++                t = eos if eos is not None else (ff[0] if ff else None)
++                if t is None:
++                    return                                  # free and nothing forced: the turn ends short
++            c.feed(t)
++            out += 1
++            yield emit(t)
++            if t in c.vocab.eos:
++                return
++
++    def answer_tokens(self):
++        """The answer part of the emitted sequence: from the first token that opens the JSON ('{' = 123)."""
++        return self.emitted[self.emitted.index(123):]
++
++    def answer_json(self, tok):
++        """The JSON object the engine emitted under the mask, parsed straight out of the token sequence
++        (raw_decode stops at the closing brace, so prose after it and the end-of-turn token are ignored)."""
++        obj, end = json.JSONDecoder().raw_decode(tok.decode(self.answer_tokens()))
++        return obj, self.answer_tokens()[:end]
++
++
++# ------------------------------------------------------------------------------------------------ the protocol
++@need
++@unittest.skipIf(os.name == "nt", "the fake engine is started through a POSIX shell script")
++class FakeEngine(Http):
++    def setUp(self):
++        self.dir = tempfile.TemporaryDirectory()
++        d = Path(self.dir.name)
++        self.script, self.log = d / "script.txt", d / "mq.log"
++        self.script.write_text('Sure! {"n": "7"} done', encoding="utf-8")
++        os.environ["FAKE_SCRIPT_FILE"], os.environ["FAKE_LOG"] = str(self.script), str(self.log)
++        self.exe = d / "strata"
++        self.exe.write_text(f'#!/bin/sh\nexec "{sys.executable}" "{ROOT / "serve/fake_mask_engine.py"}" "$@"\n')
++        self.exe.chmod(self.exe.stat().st_mode | stat.S_IEXEC)
++
++    def tearDown(self):
++        super().tearDown()
++        self.engine.close()
++        for k in ("FAKE_SCRIPT_FILE", "FAKE_LOG"):
++            os.environ.pop(k, None)
++        self.dir.cleanup()
++
++    def test_the_engine_takes_the_masks(self):
++        self.start(StrataEngine(str(self.exe), ["--max-context", "8192"]))
++        self.assertTrue(self.engine.supports_mask)
++        code, r = self.chat()
++        self.assertEqual(code, 200, r)
++        self.assertEqual(json.loads(r["choices"][0]["message"]["content"]), {"n": 7})
++        answers = self.log.read_text().split()
++        self.assertGreater(answers.count("MK"), 0)
++
++    def test_an_older_engine_is_unchanged(self):
++        self.start(StrataEngine(str(self.exe), ["--max-context", "8192", "--no-mask"]))
++        self.assertFalse(self.engine.supports_mask)
++        code, r = self.chat()
++        self.assertEqual((code, r["error"]["code"]), (502, "structured_output_failed"))
++        self.assertFalse(self.log.exists())
++
++    def test_a_stop_while_the_engine_waits_for_a_mask(self):
++        self.start(StrataEngine(str(self.exe), ["--max-context", "8192"]))
++        self.script.write_text('{"n": 123456789}', encoding="utf-8")
++        sampling = self.svc._with_constraint({"response_format": FMT}, None, False)
++        gen = self.engine.generate(self.tok.encode("hi"), 100, sampling, threading.Event())
++        self.assertEqual([next(gen), next(gen)], [ord("{"), ord('"')])
++        gen.close()                                          # STOP; the engine's next MQ is answered MF, then DONE
++        self.script.write_text('{"n": 4}', encoding="utf-8")
++        code, r = self.chat()
++        self.assertEqual(code, 200, r)
++        self.assertEqual(json.loads(r["choices"][0]["message"]["content"]), {"n": 4})
++
++
++# ----------------------------------------------------------------- the chat route with tools + a JSON format
++@need
++class ChatToolsWithJsonSchema(Http):
++    """T5 (plan §2 論点6): the chat route takes tools and a JSON format together while the masks are live;
++    the old 400 stays where they are not; a tool-call turn passes the validator untouched."""
++
++    def setUp(self):
++        engine = MockEngine(self.tok, 'Sure: {"n": 7}', max_context=16384)
++        engine.supports_mask = True
++        self.start(engine)
++        self._saved_enum = os.environ.get("STRATA_TOOL_NAME_ENUM")
++
++    def tearDown(self):
++        super().tearDown()
++        if self._saved_enum is None:
++            os.environ.pop("STRATA_TOOL_NAME_ENUM", None)
++        else:
++            os.environ["STRATA_TOOL_NAME_ENUM"] = self._saved_enum
++
++    def test_an_undeclared_name_degrades_to_free_decoding(self):
++        """T3b: with STRATA_TOOL_NAME_ENUM=1 a grammar problem (e.g. a name the regex cannot carry) must
++        degrade the request to free decoding - the answer still comes back, never a 502."""
++        os.environ["STRATA_TOOL_NAME_ENUM"] = "1"
++        code, r = self.chat_tools()
++        self.assertEqual(code, 200, r)                       # the fallback in _with_constraint: no 502
++        self.assertEqual(json.loads(r["choices"][0]["message"]["content"]), {"n": 7})
++
++    def chat_tools(self, **kw):
++        return self.chat(tools=TOOLS, **kw)
++
++    def test_tools_with_json_schema_is_not_400_when_the_mask_is_live(self):
++        code, r = self.chat_tools()
++        self.assertEqual(code, 200, r)                          # the old blanket 400 is gone under the mask
++        self.assertEqual(json.loads(r["choices"][0]["message"]["content"]), {"n": 7})
++        with urllib.request.urlopen(self.base + "/v1/status", timeout=10) as s:
++            self.assertTrue(json.loads(s.read())["structured_output"]["tools_with_json"])
++
++    def test_an_engine_without_the_mask_still_returns_400(self):
++        self.engine.supports_mask = False
++        code, r = self.chat_tools()
++        self.assertEqual(code, 400, r)
++        self.assertIn("not supported", r["error"]["message"])
++
++    def test_a_tool_call_turn_passes_the_validator_untouched(self):
++        self.engine.scripts = [self.tok.encode(CALL, parse_special=True) + self.tok.encode(IM_END, parse_special=True),
++                               self.tok.encode('Done: {"n": 3}', parse_special=True)
++                               + self.tok.encode(IM_END, parse_special=True)]
++        self.engine.script, self.engine.turns = self.engine.scripts[0], 0
++        code, r = self.chat_tools()
++        self.assertEqual(code, 200, r)                          # the call is not validated against the schema
++        msg = r["choices"][0]["message"]
++        self.assertEqual(r["choices"][0]["finish_reason"], "tool_calls")
++        self.assertEqual([c["function"]["name"] for c in msg["tool_calls"]], ["exec_command"])
++
++
++# ----------------------------------------------------------------- the bare tool call under the mask
++@need
++class ChatBareToolMask(Http):
++    """T6 (plan §2 論点4, STRATA_TOOL_MASK=1 opt-in): bare tool calls - no response_format - are constrained:
++    the tag can only arrive through the calls branch (the name sits behind the enum, the separator frees the
++    turn), prose stays possible and a prose turn ends at the EOS like an unconstrained one."""
++
++
++    def setUp(self):
++        engine = MockEngine(self.tok, 'I checked it directly: 7', max_context=16384)
++        engine.supports_mask = True
++        self.start(engine)
++        self._saved = {k: os.environ.get(k) for k in ("STRATA_TOOL_MASK", "STRATA_TOOL_NAME_ENUM")}
++
++    def tearDown(self):
++        super().tearDown()
++        for k, v in self._saved.items():
++            if v is None:
++                os.environ.pop(k, None)
++            else:
++                os.environ[k] = v
++
++    def chat_tools(self, **kw):
++        body = {"messages": [{"role": "user", "content": "run ls"}], "tools": TOOLS,
++                "reasoning_effort": "none", **kw}
++        return self.post("/v1/chat/completions", body)
++
++    def test_off_by_default(self):
++        code, r = self.chat_tools()
++        self.assertEqual(code, 200, r)
++        self.assertIsNone(self.engine.last_sampling_constraint)   # the sampling carried no constraint key
++
++    def test_prose_answer_turn_under_the_mask(self):
++        """A prose turn (no call) ends at the EOS under the bare-call mask: masked=0 for prose text."""
++        os.environ["STRATA_TOOL_MASK"] = "1"
++        code, r = self.chat_tools()
++        self.assertEqual(code, 200, r)
++        self.assertEqual(r["choices"][0]["message"]["content"], "I checked it directly: 7")
++
++    def test_a_bare_tool_call_is_masked_and_the_enum_ignored_without_the_flag(self):
++        """With STRATA_TOOL_MASK=1 alone (no STRATA_TOOL_NAME_ENUM), the tag feeds the free-REST branch."""
++        os.environ["STRATA_TOOL_MASK"] = "1"
++        self.engine.scripts = [self.tok.encode(CALL, parse_special=True) + self.tok.encode(IM_END, parse_special=True)]
++        self.engine.script, self.engine.turns = self.engine.scripts[0], 0
++        code, r = self.chat_tools()
++        self.assertEqual(code, 200, r)
++        msg = r["choices"][0]["message"]
++        self.assertEqual(r["choices"][0]["finish_reason"], "tool_calls")
++        self.assertEqual([c["function"]["name"] for c in msg["tool_calls"]], ["exec_command"])
++
++    def test_the_enum_with_the_bare_mask_ends_at_the_separator(self):
++        """STRATA_TOOL_MASK=1 + STRATA_TOOL_NAME_ENUM=1: the tag feeds the enum, the separator frees the
++        turn (案1), and the call passes untouched - measured: finish_reason tool_calls, 200."""
++        os.environ["STRATA_TOOL_MASK"] = "1"
++        os.environ["STRATA_TOOL_NAME_ENUM"] = "1"
++        self.engine.scripts = [self.tok.encode(CALL, parse_special=True) + self.tok.encode(IM_END, parse_special=True)]
++        self.engine.script, self.engine.turns = self.engine.scripts[0], 0
++        code, r = self.chat_tools()
++        self.assertEqual(code, 200, r)
++        msg = r["choices"][0]["message"]
++        self.assertEqual(r["choices"][0]["finish_reason"], "tool_calls")
++        self.assertEqual([c["function"]["name"] for c in msg["tool_calls"]], ["exec_command"])
++
++    # --- the Responses route: bare tools, no text.format - the same shared generation loop
++    def test_responses_bare_tool_call_under_the_mask(self):
++        os.environ["STRATA_TOOL_MASK"] = "1"
++        self.engine.scripts = [self.tok.encode(CALL, parse_special=True) + self.tok.encode(IM_END, parse_special=True)]
++        self.engine.script, self.engine.turns = self.engine.scripts[0], 0
++        body = {"model": "x", "input": [{"role": "user", "content": [{"type": "text", "text": "run ls"}]}],
++                "tools": [{"type": "function", "name": "exec_command", "description": "Runs a command.",
++                           "parameters": TOOLS[0]["parameters"]}],
++                "stream": False}
++        code, r = self.post("/v1/responses", body)
++        self.assertEqual(code, 200, r)
++        out = r.get("output") or []
++        calls = [c for c in out if c.get("type") == "function_call"]
++        self.assertEqual([c["name"] for c in calls], ["exec_command"])
++
++    # --- the Anthropic route: bare tools, no format - the sampling carries no response_format either
++    def test_anthropic_bare_tool_call_under_the_mask(self):
++        os.environ["STRATA_TOOL_MASK"] = "1"
++        self.engine.scripts = [self.tok.encode(CALL, parse_special=True) + self.tok.encode(IM_END, parse_special=True)]
++        self.engine.script, self.engine.turns = self.engine.scripts[0], 0
++        body = {"model": "x", "max_tokens": 512, "stream": False,
++                "tools": [{"name": "exec_command", "description": "Runs a command.",
++                           "input_schema": TOOLS[0]["parameters"]}],
++                "messages": [{"role": "user", "content": "run ls"}]}
++        code, r = self.post("/v1/messages", body)
++        self.assertEqual(code, 200, r)
++        blocks = [b for b in (r.get("content") or []) if isinstance(b, dict) and b.get("type") == "tool_use"]
++        self.assertEqual([b["name"] for b in blocks], ["exec_command"])
++
++
++# --------------------------------------------------------- custom tool grammars (spec item 2, cards T2a / T2c)
++class _CallEndTagTokenizer(TagTokenizer):
++    """The production pack's shape this design assumes: the call closer is ONE type-4 special token,
++    like the call opener (T3d).  The plain fixture omits it - probe7 measured the single lookup as
++    None - so the release path needs its own fixture (notes/T2d-impl.md)."""
++    SPECIALS = TagTokenizer.SPECIALS + [FE.CALL_END]
++
++
++@need
++class CustomToolGrammars(unittest.TestCase):
++    """T2d: the custom_calls route the parents wired - responses.request_tools records the grammar
++    entries under CUSTOM_CALLS_KEY (T2c) and constrain.grammar()'s custom_calls branch builds the
++    probe7 call grammar (T2a).  The server.py route that consumes the key is NOT wired yet (it sits
++    outside every card's edit scope), so `_route` below composes the two sides the way the T4 route
++    will, and the degradation test pins the never-a-502 contract the route must keep.
++
++    Payload safety (the gateway cuts text at the tag-closer character): no tag string is written as
++    a literal here - every tag is assembled from serve.frontend's own constants plus chr(62)."""
++
++    GT = chr(62)                                       # the tag closer, built, never typed
++
++    def setUp(self):
++        self.tok = TagTokenizer()                      # <tool_call> is ONE special token (T3d)
++        self.stop = set(self.tok.encode(IM_END, parse_special=True))   # the real server's stop set
++        self.vocab = C.Vocab(self.tok, self.stop)
++
++    def _entries(self, name, definition):
++        return [{"name": name, "definition": definition}]
++
++    def _constraint(self, entries):
++        g = C.grammar({"type": "custom_calls", "entries": entries}, False, self.vocab)
++        return C.Constraint(self.vocab, g, armed=True, custom_calls=True)
++
++    def _call(self, name, value):
++        """The full call text, assembled: CALL_START nl FUNC_START name GT nl PARAM_START input GT nl
++        value nl PARAM_END nl FUNC_END nl CALL_END (the probe7 shape)."""
++        gt, nl = self.GT, "\n"
++        return (FE.CALL_START + nl + FE.FUNC_START + name + gt + nl
++                + FE.PARAM_START + "input" + gt + nl + value + nl + FE.PARAM_END + nl
++                + FE.FUNC_END + nl + FE.CALL_END)
++
++    def _feed(self, c, text):
++        for t in self.tok.encode(text, parse_special=True):
++            c.feed(t)
++
++    def _consumes(self, gtext, text):
++        """The probe7 raw() check: feed the whole text into a fresh matcher; return (ok, report)."""
++        g = C._llg.LLMatcher.grammar_from_lark(gtext)
++        m = C._llg.LLMatcher(self.vocab.lltok, g, log_level=0)
++        self.assertFalse(m.is_error(), m.get_error())
++        for i, t in enumerate(self.tok.encode(text, parse_special=True)):
++            if not m.consume_token(t):
++                return False, f"stopped at token #{i} {self.tok.decode([t])!r}"
++        return True, "full consume"
++
++    def _route(self, req):
++        """How the T4 route consumes the T2c key (the probe7 / T2a contract): the entries go to
++        grammar() directly - NOT through format_of, which returns None for this type - and the
++        Constraint is built with custom_calls=True.  A build failure returns None: the request keeps
++        its no-constraint shape and decodes free (the server._with_constraint except-shape), never a
++        502."""
++        entries = req.get(R.CUSTOM_CALLS_KEY)
++        if not entries:
++            return None
++        try:
++            g = C.grammar({"type": "custom_calls", "entries": entries}, False, self.vocab)
++            return C.Constraint(self.vocab, g, armed=True, custom_calls=True)
++        except Exception:
++            return None
++
++    # --- 1: the grammar builds from a minimal one-tool entry list and masks from the first token ---
++    def test_custom_calls_grammar_builds_and_masks(self):
++        c = self._constraint(self._entries("patch", "[a-z]+=[0-9]+"))
++        self.assertIsNone(c.failed)                                # armed and live from the start
++        reply = c.reply()
++        self.assertTrue(reply.startswith("MK "), reply[:24])       # masked from the first token
++        bits = base64.b64decode(reply[3:])
++        allowed = {v for v in range(self.vocab.n) if C.Constraint.allowed(bits, v)}
++        self.assertIn(c.tool_call, allowed)                        # the call opens through the tag token
++        lt = [t for t in range(self.vocab.n) if self.vocab.bytes_of(t) == b"<"]
++        self.assertTrue(lt and lt[0] not in allowed)               # PROSE cannot start with the tag opener
++        y = [t for t in range(self.vocab.n) if self.vocab.bytes_of(t) == b"y"]
++        self.assertTrue(y and y[0] in allowed)                     # a prose first byte is free
++
++    # --- 2: the closed call frees the turn on this fixture (measured 2026-10-28, notes/T2d-impl.md):
++    # the fixture tokenizer holds no single token for the call closer, so the turn frees through the
++    # calls rule's trailing REST - the mask stays live but every valid-UTF-8 token is allowed (the
++    # invalid single bytes stay masked forever, the T3a REST finding), never refusing the call ---
++    def test_closed_call_ends_free_and_reply_is_all_permission(self):
++        c = self._constraint(self._entries("patch", "[a-z]+=[0-9]+"))
++        self.assertIsNone(c.call_end)                  # the fixture has no single call-closer token
++        self._feed(c, self._call("patch", "x=1"))
++        self.assertIsNone(c.failed)                    # the call consumed cleanly to the end
++        bits = c.mask()
++        self.assertIsNotNone(bits)                     # the mask stays live through REST
++        allowed = {v for v in range(self.vocab.n) if C.Constraint.allowed(bits, v)}
++        self.assertTrue(all(v not in allowed for v in range(0x80, 0xC0)))   # invalid single bytes stay masked
++        y = [t for t in range(self.vocab.n) if self.vocab.bytes_of(t) == b"y"]
++        self.assertTrue(y and y[0] in allowed)         # every valid token stays free
++        self.assertTrue(c.reply().startswith("MK "), c.reply()[:8])
++
++    # --- 2b: a pack whose tokenizer holds the call closer as ONE type-4 token - T3 moved the
++    # envelope tokens to vocab.literal, so the grammar consumes the closing special token through
++    # the `<[id]>` reference and the release branch fires (the T2a-era marker-byte refusal of the
++    # plain-text closer literal is fixed; notes/T3-impl.md) ---
++    def test_a_single_call_end_pack_releases_at_the_close(self):
++        tok = _CallEndTagTokenizer()
++        vocab = C.Vocab(tok, set(tok.encode(IM_END, parse_special=True)))
++        g = C.grammar({"type": "custom_calls", "entries": self._entries("patch", "[a-z]+=[0-9]+")}, False, vocab)
++        c = C.Constraint(vocab, g, armed=True, custom_calls=True)
++        self.assertIsNotNone(c.call_end)               # the release token exists on this vocabulary
++        for t in tok.encode(self._call("patch", "x=1"), parse_special=True):
++            c.feed(t)                                   # the VARIANT tokenizer: the closer is ONE token
++        self.assertEqual(c.failed, "tool call")        # released exactly at the closing token (T2a)
++        self.assertIsNone(c.mask())                    # free from there on
++        self.assertTrue(c.reply().startswith("MF"), c.reply()[:16])
++
++    def test_prose_turn_never_releases_early(self):
++        c = self._constraint(self._entries("patch", "[a-z]+=[0-9]+"))
++        self._feed(c, "just prose, nothing more.")
++        self.assertIsNone(c.failed)                    # a prose turn keeps the mask live to the end
++        self.assertIsNotNone(c.mask())
++
++    # --- 3: prefix pair - the shorter name is excluded, the longer one passes ---
++    def test_prefix_pair_keeps_the_longer_name(self):
++        entries = [{"name": "exec_command", "definition": "ls"}, {"name": "exec", "definition": "ps"}]
++        gtext, kept = C._custom_calls_grammar(entries, self.vocab)
++        self.assertEqual(kept, ["exec_command"])       # the shorter prefix name is dropped
++        ok_long, rep = self._consumes(gtext, self._call("exec_command", "ls"))
++        self.assertTrue(ok_long, rep)                  # the longer name consumes to the end
++        ok_short, _ = self._consumes(gtext, self._call("exec", "ps"))
++        self.assertFalse(ok_short)                     # the shorter name is not in the grammar
++
++
++
++    # --- 4: the value lexeme consumes exactly what the custom grammar declares: one lexeme ending at
++    # the parameter closer; a definition that allows newlines takes a multi-line value in one lexeme,
++    # and one that forbids them stops (probe7's measured case) ---
++    def test_the_value_lexeme_consumes_what_the_definition_declares(self):
++        gtext, _ = C._custom_calls_grammar(self._entries("patch", "[a-z]+=[0-9]+"), self.vocab)
++        ok, rep = self._consumes(gtext, self._call("patch", "x=1"))
++        self.assertTrue(ok, rep)                       # a one-line value consumes to the end
++        ok2, _ = self._consumes(gtext, self._call("patch", "x=1\ny=2"))
++        self.assertFalse(ok2)                          # the definition forbids the newline: probe7's stop
++        nl = chr(10)
++        wide, _ = C._custom_calls_grammar(self._entries("patch", "[a-z0-9" + nl + "=]+"), self.vocab)
++        ok3, rep3 = self._consumes(wide, self._call("patch", "a" + nl + "b" + nl + "c"))
++        self.assertTrue(ok3, rep3)                     # a newline-allowing definition: multi-line in one lexeme
++
++    # --- 5: an entry without a usable (string) definition is dropped; with no usable entry left the
++    # grammar raises and the route composition returns None - the request keeps its old shape ---
++    def test_an_entry_without_a_string_definition_is_dropped(self):
++        with self.assertRaises(ValueError):
++            C.grammar({"type": "custom_calls", "entries": [{"name": "patch"}]}, False, self.vocab)
++        with self.assertRaises(ValueError):
++            C.grammar({"type": "custom_calls", "entries": [{"name": "patch", "definition": 7}]}, False, self.vocab)
++        self.assertIsNone(self._route({R.CUSTOM_CALLS_KEY: [{"name": "patch"}]}))
++
++    # --- 6: a definition llguidance cannot compile degrades to free decoding - the route composition
++    # catches the build error and hands back None (never a 502; the request decodes free) ---
++    def test_a_broken_definition_degrades_to_free_decoding(self):
++        self.assertIsNone(self._route({R.CUSTOM_CALLS_KEY: [{"name": "patch", "definition": "start: [["}]}))
++
++
++
++# ---------------------------------------------------------------- T3: the conditional body binding
++@need
++class BodyBinding(unittest.TestCase):
++    """T3 (spec item 3): the call body binds only when the tokenizer holds the call opener as ONE
++    type-4 token (the T3d lesson - a tokenizer that cannot produce the opener as written cannot be
++    bound past it); otherwise the name enumeration stays and the body stays the free REST.  The
++    envelope tokens ride vocab.literal, so the bound grammar matches both pack shapes (the T2a-era
++    marker-byte refusal of the plain-text closer is gone).  Measured decisions: notes/T3-impl.md."""
++
++    GT = chr(62)                                       # the tag closer, built, never typed
++
++    def setUp(self):
++        self.tok = TagTokenizer()                      # the opener IS one special token (T3d)
++        self.stop = set(self.tok.encode(IM_END, parse_special=True))
++        self.vocab = C.Vocab(self.tok, self.stop)
++
++    def _g(self, defn, vocab=None, name="patch"):
++        v = vocab or self.vocab
++        return C.grammar({"type": "custom_calls", "entries": [{"name": name, "definition": defn}]}, False, v)
++
++    def _call(self, value):
++        gt, nl = self.GT, "\n"
++        return (FE.CALL_START + nl + FE.FUNC_START + "patch" + gt + nl
++                + FE.PARAM_START + "input" + gt + nl + value + nl + FE.PARAM_END + nl
++                + FE.FUNC_END + nl + FE.CALL_END)
++
++    def _consumes(self, vocab, gtext, text, tok=None):
++        tok = tok or self.tok
++        g = C._llg.LLMatcher.grammar_from_lark(gtext)
++        m = C._llg.LLMatcher(vocab.lltok, g, log_level=0)
++        self.assertFalse(m.is_error(), m.get_error())
++        for i, t in enumerate(tok.encode(text, parse_special=True)):
++            if not m.consume_token(t):
++                return False, "stopped at #" + str(i)
++        return True, "full consume"
++
++    # --- 1: an opener-single vocabulary binds the body: one-line AND multi-line values FULL CONSUME ---
++    def test_bound_body_consumes_the_values_the_definition_declares(self):
++        g = self._g("[a-z]+=[0-9]+")
++        self.assertIn("/[a-z]+=[0-9]+", g)             # the definition rides the value lexeme (bound)
++        ok, rep = self._consumes(self.vocab, g, self._call("x=1"))
++        self.assertTrue(ok, rep)                       # a one-line value consumes to the end
++        nl = chr(10)
++        wide = self._g("[a-z0-9" + nl + "=]+")
++        self.assertIn("/[a-z0-9\\n=]+", wide)          # the real newline became the regex escape
++        ok2, rep2 = self._consumes(self.vocab, wide, self._call("a" + nl + "b" + nl + "c"))
++        self.assertTrue(ok2, rep2)                     # a multi-line value consumes in one lexeme
++
++    # --- 2: a vocabulary without the opener as ONE token falls back: names only, the body is the
++    # free REST - even a definition-violating value consumes (the bound shape would refuse it) ---
++    def test_an_openerless_vocabulary_falls_back_to_the_free_body(self):
++        tok = ByteTokenizer()                          # no specials for the opener: TOOL_CALL not single
++        vocab = C.Vocab(tok, set(tok.encode(IM_END, parse_special=True)))
++        self.assertIsNone(vocab.single(FE.CALL_START))
++        g = self._g("[a-z]+=[0-9]+", vocab=vocab)
++        self.assertNotIn("/[a-z]+=[0-9]+", g)          # no value lexeme: the body is unbound
++        gt = self.GT
++        call = (FE.CALL_START + "\n" + FE.FUNC_START + "patch" + gt + "\n"
++                + FE.PARAM_START + "input" + gt + "\n" + "1=x" + "\n" + FE.PARAM_END + "\n"
++                + FE.FUNC_END + "\n" + FE.CALL_END)
++        ok, rep = self._consumes(vocab, g, call, tok=tok)
++        self.assertTrue(ok, rep)                       # the violating value consumes: the REST is free
++
++    # --- 3: a structured (non-string) definition drops the tool - R9 measured: only usable entries
++    # reach the grammar, the rest is left to the free path after the turn's validation ---
++    def test_a_structured_definition_drops_the_tool(self):
++        entries = [{"name": "patch", "definition": "[a-z]+=[0-9]+"},
++                   {"name": "obj_tool", "definition": {"type": "object", "properties": {}}}]
++        g = C.grammar({"type": "custom_calls", "entries": entries}, False, self.vocab)
++        self.assertIn('"patch"', g)                    # the usable entry is bound
++        self.assertNotIn("obj_tool", g)                # the structured-definition tool is dropped (R9)
++
++    # --- 4: the answer branch stays the probe P5 shape: prose may start with anything but the
++    # tag-opener byte, and the call opens through its own special token ---
++    def test_prose_starts_free_except_the_tag_opener_byte(self):
++        c = C.Constraint(self.vocab, self._g("[a-z]+=[0-9]+"), armed=True, custom_calls=True)
++        reply = c.reply()
++        self.assertTrue(reply.startswith("MK "), reply[:24])
++        bits = base64.b64decode(reply[3:])
++        allowed = {v for v in range(self.vocab.n) if C.Constraint.allowed(bits, v)}
++        lt = [t for t in range(self.vocab.n) if self.vocab.bytes_of(t) == b"<"]
++        self.assertTrue(lt and lt[0] not in allowed)   # the tag opener cannot start the turn
++        y = [t for t in range(self.vocab.n) if self.vocab.bytes_of(t) == b"y"]
++        self.assertTrue(y and y[0] in allowed)         # prose starts free
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/serve/test_structured.py b/serve/test_structured.py
+index f0e2c74a..18714064 100644
+--- a/serve/test_structured.py
++++ b/serve/test_structured.py
+@@ -244,6 +244,50 @@ class Structured(unittest.TestCase):
+         r = subprocess.run([sys.executable, "-c", code], cwd=str(Path(__file__).resolve().parents[1]))
+         self.assertEqual(r.returncode, 0)
+ 
++    # ------------------------------------------------------------------ T2b: lark response_format through HTTP
++    def masked_chat(self, script, response_format):
++        """chat() on an engine that takes token masks (a real engine's INFO token_mask key): the Constraint
++        path of serve/constrain.py is really taken when the format survives prepare_format."""
++        self.engine = self.svc.engine = MockEngine(self.tok, script, max_context=16384)
++        self.engine.supports_mask = True
++        req = {"messages": [{"role": "system", "content": "Write a film plan."},
++                            {"role": "user", "content": "Photobooth. 15 seconds."}],
++               "response_format": response_format, "reasoning_effort": "none"}
++        return self.request("/v1/chat/completions", req)
++
++    def test_lark_format_reaches_the_constraint_and_is_not_json_validated(self):
++        # a well-formed lark rf passes prepare_format (no 400), reaches the Constraint (T1's passthrough)
++        # and the turn is not JSON-validated afterwards: prose stays a 200 where json_object would be a 502.
++        # Without llguidance installed the same request free-decodes to 200 (mask_available() is False),
++        # so the 200 holds in both environments; the constraint assertion only runs with llguidance.
++        from serve import constrain
++        rf = {"type": "lark", "grammar": 'start: "yes" | "no"'}
++        code, reply = self.masked_chat("yes", rf)
++        self.assertEqual(code, 200)
++        self.assertEqual(reply["choices"][0]["message"]["content"], "yes")
++        if constrain.available():
++            self.assertIsNotNone(self.engine.last_sampling_constraint)
++        # a plain-text answer under a JSON format would be a 502: under lark it is a 200 (no after-the-turn gate)
++        code, _ = self.chat("Prose, not JSON.", response_format=rf)
++        self.assertEqual(code, 200)
++
++    def test_lark_that_cannot_build_degrades_to_free_decoding(self):
++        # a lark grammar llguidance cannot compile drops the mask (the existing "constrained decoding off"
++        # fallback in _with_constraint): the turn free-decodes to a 200, never a 502 or 400.
++        code, reply = self.masked_chat("Sure thing.", {"type": "lark", "grammar": "start: [[["})
++        self.assertEqual(code, 200)
++        self.assertEqual(reply["choices"][0]["message"]["content"], "Sure thing.")
++        self.assertIsNone(self.engine.last_sampling_constraint)
++
++    def test_malformed_lark_is_400_before_loading(self):
++        with mock.patch.object(self.svc, "load") as load:
++            for fmt in ({"type": "lark"}, {"type": "lark", "grammar": ""}, {"type": "lark", "grammar": 7}):
++                with self.subTest(fmt=fmt):
++                    code, reply = self.chat(response_format=fmt)
++                    self.assertEqual(code, 400)
++                    self.assertIn("grammar", reply["error"]["message"])
++            load.assert_not_called()
++
+ 
+ if __name__ == "__main__":
+     unittest.main()
+diff --git a/serve/test_tool_name_constraint.py b/serve/test_tool_name_constraint.py
+new file mode 100644
+index 00000000..aa1b201c
+--- /dev/null
++++ b/serve/test_tool_name_constraint.py
+@@ -0,0 +1,81 @@
++"""Names must stay constrained across prose, thinking, multiple calls and MTP windows."""
++import base64
++import os
++import threading
++import unittest
++from types import SimpleNamespace
++from unittest.mock import patch
++
++from serve import constrain as C
++from serve.server import Service, ByteTokenizer
++
++
++@unittest.skipUnless(C.available(), 'llguidance required')
++class ToolNameConstraintTests(unittest.TestCase):
++    def setUp(self):
++        self.tok = ByteTokenizer()
++        self.stop = set(self.tok.encode('<|im_end|>', parse_special=True))
++        self.vocab = C.Vocab(self.tok, self.stop)
++
++    def test_tools_without_response_format_are_actually_constrained(self):
++        app = Service.__new__(Service)
++        app.engine = SimpleNamespace(supports_mask=True)
++        app.tok, app.stop_ids = self.tok, self.stop
++        tools = [{'name': 'sql_query', 'parameters': {'type': 'object'}}]
++        with patch.dict(os.environ, {'STRATA_TOOL_MASK': '1', 'STRATA_TOOL_NAME_ENUM': '1', 'STRATA_TOOL_MASK_STRICT': '1'}):
++            sampling = app._with_constraint({}, tools, thinking=True)
++        self.assertIsNotNone(sampling.get(C.KEY))
++
++    def guard(self):
++        return C.ToolNameConstraint(self.vocab, ['sql_query', 'exec', 'exec_command'])
++
++    def feed(self, guard, text):
++        for t in self.tok.encode(text, parse_special=True):
++            self.assertTrue(C.Constraint.allowed(guard.mask(), t), (text, t))
++            guard.feed(t)
++
++    def test_wrong_prefix_is_masked_after_prose_and_inside_thinking(self):
++        for lead in ['', 'Ich prüfe das.\n', '<think>Plan: ', '<tool_call>\n']:
++            with self.subTest(lead=lead):
++                c = self.guard()
++                self.feed(c, lead + '<function=')
++                self.assertFalse(C.Constraint.allowed(c.mask(), ord('m')))
++                self.assertTrue(C.Constraint.allowed(c.mask(), ord('s')))
++                self.assertFalse(C.Constraint.allowed(c.mask(), min(self.stop)))
++
++    def test_each_call_and_prefix_pair_stays_constrained(self):
++        c = self.guard()
++        self.feed(c, '<tool_call><function=exec>anything</function></tool_call>\nMore prose.\n<tool_call><function=exec')
++        self.assertTrue(C.Constraint.allowed(c.mask(), ord('>')))
++        self.assertTrue(C.Constraint.allowed(c.mask(), ord('_')))
++        self.assertFalse(C.Constraint.allowed(c.mask(), ord('x')))
++        self.feed(c, '_command>args</function></tool_call>')
++        self.feed(c, 'Deutsch: äöü und 中文.')
++
++    def test_lookahead_does_not_mutate_live_state_or_accept_bad_draft(self):
++        c = self.guard()
++        self.feed(c, '<function=')
++        before = c.mask()
++        reply = c.reply(list(b'sql_x'))
++        _, n, *rows = reply.split()
++        self.assertEqual(int(n), 5)  # sql_ accepted, x is outside the name trie
++        self.assertEqual(c.mask(), before)
++        self.assertTrue(C.Constraint.allowed(base64.b64decode(rows[-1]), ord('q')))
++        self.assertFalse(C.Constraint.allowed(base64.b64decode(rows[-1]), ord('x')))
++
++    def test_illegal_emitted_token_fails_closed(self):
++        c = self.guard()
++        self.feed(c, '<function=')
++        with self.assertRaises(ValueError):
++            c.feed(ord('m'))
++
++    def test_unsupported_engine_fails_closed_when_opted_in(self):
++        app = Service.__new__(Service)
++        app.engine = SimpleNamespace(supports_mask=False)
++        with patch.dict(os.environ, {'STRATA_TOOL_MASK_STRICT': '1'}):
++            with self.assertRaises(ValueError):
++                app._with_constraint({}, [{'name': 'sql_query'}], thinking=False)
++
++
++if __name__ == '__main__':
++    unittest.main()
+diff --git a/setup.py b/setup.py
+index 26b6661e..a7177f01 100644
+--- a/setup.py
++++ b/setup.py
+@@ -271,7 +271,8 @@ ENGINE12_DIR = "engine-cuda12"
+ MIN_ENGINE = (0, 1, 46)                # versions compare all numbers; v0.1.46: the 0.2 release engine (UPDATE.bat and setup fetch it from the signed feed, #3469 #3437); v0.1.45: Qwen3.6 parallel requests and pictures, fixes #2346 #2372 #2396; v0.1.44.1: CPUs without AVX2 start again (#2324: an illegal instruction before main in the NVFP4 CPU rows), the CUDA 12.0/12.1 toolkits build (#2322), a crashed engine start is named instead of retried as a GPU runtime start, Mac M2 (#2323); v0.1.44: UD-Q4/Q5/Q6_K_XL and Q8_0 Unsloth files in setup (K-quant experts, MMQ prompt library strata_kq), NVFP4 packs, Qwen3.6-35B-A3B, Intel Arc A-series kernels, the pipelined-decode and latency work; v0.1.43.1: the adaptive overlap no longer collapses decode on pinned-host desktops (#1964 #1975), Windows PLE mmap stall (#1984), pinned prompt uploads (#1996), the I/O watchdog allowance; v0.1.43: adaptive-tier copies overlap on CUDA, P100 (sm_60) kernel tables, RDNA4 (gfx1200/gfx1201) defaults (route tail skip, measured PCIe share, 16K prompt chunks, fused IQ3 prompt experts); v0.1.42.1: the GGUF-in-place file tier on Windows unmaps every shard, dual-socket starts judge each NUMA node and STRATA_DROP_CACHE_ON_EXIT, tools/strata_bench.py; v0.1.42: STRATA_ROUTE_TAIL_SKIP=7 default on CUDA (+13-16% decode), the AMD 2-GPU checkpoint fix (H13), Phase 2 fixes and opt-ins; v0.1.41.1 (folded into 0.1.42): the #1576 card order, #1616 stage size, #1595 CPU share, #1630/#1607 Windows HIP chunk cap and commit-limit warning, #1603 parallel-request bookkeeping; v0.1.41: CPU prefill share on by default (NVIDIA, chunks < 1024), --batch-groups auto, the file tier read in batches on Windows, Pascal decode fix, per-arch tables; v0.1.40.3: the #1357 MTP router guard, the #1376 Windows HIP cache floor, #461 runtime DLLs, Intel A750 first-request fix; v0.1.40.2: F4 verify windows, the Linux file tier (#1194), the stager wait (#1057), #1264/#1201/#1139 fixes, opt-in CPU share (#1282), Intel Arc; v0.1.40: --resident-experts on a layer split with the split+resident variant (#848), --kv k8v4 with KV streaming (#711); v0.1.39: the #577 file-tier regression fixed, the OpenAI Responses API (#451, Codex), a reply stuck on one token ended (#606), the head before the arena (#620), effort_position (#458), --vram-reserve hot resize opt-in (#533), PR batch; v0.1.38: prompts faster (one gather per expert group #372, the first chunk's PLE rows beside layer 0 #374, DeltaNet three heads per thread #413), --kv q4_0 prompts on tensor cores (#452), Q5_0 experts on the GPU (#473), IQ4_XS on AVX-2 (#415), unbuffered expert loading on Windows (#357 #362), --peer-device (#531), a 6 GB card starts (#496), PR batch; v0.1.37: a silent engine is restarted (#481), Windows AMD counts the desktop's VRAM (#380 #377 #497), a steadier PCIe probe (#485), fixes #496 #495 #498 #505 #493; v0.1.36: a cancelled prompt logged as read so far (#471), the draft-head hint (#474), UPDATE.bat (#475), --expert-profile-save (#477); v0.1.35: Windows AMD uses its bundled HIP runtime (#468 #461), the low-RAM resident mode on Windows 32 GB (#467), fixes #460 #459 #446 #447 #457 #448 #444; v0.1.34: AMD on Windows (a ready-made HIP engine), an MCP server for AI assistants (tools/strata_mcp.py), a shorter README; v0.1.33: a portable image encoder again (#411 #412), setup recommends instead of forcing (#406 #403 #364 #384), fixes #352 #365 #369 #371 #375 #393 #408 #414; v0.1.32: split prompts faster (#340), AMD router +12%, Unsloth Q4 in setup, faster Q4 prompts, #326/#327/#342/#344 fixes, PR batch; v0.1.31: Unsloth UD-Q4_K_XL (experimental), GGUF-in-place low-RAM mode, Windows GGUF load 2x, server race + tokenizer fixes, AMD intrinsics; v0.1.30: short prompts faster (streaming from 1024 tokens), resident low-RAM variant, multi-GPU session carve, RDNA4; v0.1.29: sampled answers faster (split top-k), #154 correctness fixes; v0.1.28: the expert cache reserves the draft head, a cancelled request no longer fails the next; v0.1.27: RTX 20 (sm_75) in the ready-made engine, the HIP build without CUDA headers; v0.1.26: the draft layer's prompt pass in batches; v0.1.25: faster prompts (grouping off the copy engine, fused hyper-connection kernels), AMD HIP backend, --kv k8v4; v0.1.24: long prompts faster (QSA select on tensor cores); v0.1.23: image requests honor sampling, 8 GB cards start, batched verify window; v0.1.22: faster prompts (tensor-core attention), multi-GPU across images/steering/KV streaming; v0.1.21: multi-GPU layer split (--gpus); v0.1.20: system-prompt checkpoint, PCIe probe, hit rate; v0.1.19: penalties
+ # KV bytes per context token and attention layer: 8-bit 1056, rotated 4-bit 576, hybrid K8V4 (8-bit K, 4-bit V) 816
+ KV_CELL_BYTES = {"q4_0": 576, "k8v4": 816}
+-PY_PACKAGES = ["numpy", "jinja2", "regex", "pyyaml", "tqdm", "requests", "pillow", "psutil"]
++PY_PACKAGES = ["numpy", "jinja2", "regex", "pyyaml", "tqdm", "requests", "pillow", "psutil",
++               "llguidance"]
+ REQUIREMENTS = ROOT / "requirements.txt"   # the same packages and their dependencies, pinned (#214)
+ BUILD_PACKAGES = ["cmake", "ninja"]
+ BUILD_REQUIREMENTS = ROOT / "requirements-build.txt"
+diff --git a/src/core/verify.cpp b/src/core/verify.cpp
+index 47977c15..5e860aba 100644
+--- a/src/core/verify.cpp
++++ b/src/core/verify.cpp
+@@ -13,6 +13,7 @@
+ #include "strata/core/window_evict.hpp"
+ #include "strata/core/expert_nibble.hpp"
+ #include "strata/core/pin_budget.hpp"
++#include "strata/core/token_mask.hpp"
+ #if defined(STRATA_VERIFY_HGL)
+ #include "strata/core/host_graph_launch.hpp"
+ #endif
+@@ -98,6 +99,7 @@ bool window_run(void* w, int T, const int32_t* tokens, int64_t pos0, bool head,
+ bool window_commit(void* w, int n_keep, std::string& err);
+ bool window_copy_logits(void* w, int t, float* host);
+ void window_set_sampling(void* w, const strata::kernels::SamplerParams* sp, const int32_t* hist, int hist_len);
++void window_set_token_mask(void* w, const uint32_t* words, int64_t n_words, int rows);
+ bool window_sample_slot_row(void* w, int row, const strata::kernels::SamplerParams& sp, const int32_t* hist, int hist_len, int32_t* tok, std::string& err);
+ bool window_init_slots(void* w, const std::vector<strata::core::SessionState*>& slots, std::string& err);
+ bool window_run_slots(void* w, const int* rows, int S, const int32_t* tokens, const int64_t* pos, int32_t* out, std::string& err);
+@@ -3247,6 +3249,11 @@ bool Verifier::run(int T, const int32_t* tokens, int64_t pos0, PoolMultiFn pool,
+             strata::metal_engine::window_set_sampling(metal_, nullptr, nullptr, 0);
+         }
+     }
++    strata::metal_engine::window_set_token_mask(metal_, tmask_, tmask_words_, tmask_rows_);
++    struct MetalMaskBorrow {
++        void* window;
++        ~MetalMaskBorrow() { strata::metal_engine::window_set_token_mask(window, nullptr, 0, 0); }
++    } mask_borrow{metal_};
+     return strata::metal_engine::window_run(metal_, T, tokens, pos0, head_sampling_, out, err);
+ #endif
+     using namespace strata::kernels;
+@@ -3589,6 +3596,36 @@ bool Verifier::run(int T, const int32_t* tokens, int64_t pos0, PoolMultiFn pool,
+         ++windows;
+         return next_ == nullptr || next_->run(T, tokens, pos0, pool, next_user_, out, err);
+     }
++    // ---- 4-1/4-2: serve's token mask (token_mask.hpp), all of the window's mask rows.  The mask is applied to
++    // the head logits BEFORE the request's sampler runs, so every pick reads the masked distribution: plain
++    // sampling and the greedy argmax directly, and the STRATA_SPEC_PROB path through sample_tokens_spec - that
++    // path judges the drafts by rejection sampling against THESE logits, so the same accept rule the free MTP
++    // path uses applies to the masked target automatically (a draft the mask forbids has masked probability 0
++    // and is always rejected; the residual is drawn from the masked distribution).  Host-side for now: D2H the
++    // mask's rows, set the outside tokens to kMaskedLogit, H2D them back - the row-0 dance of mask=1 widened.
++    // tmask_ holds tmask_rows_ rows of tmask_words_ words (the MKN layout); row t is words + t * n_words.
++    const bool tmask_on = tmask_ != nullptr && head_logits_ != nullptr && n_vocab_ > 0;
++    const int tmask_rows = tmask_on ? std::min(tmask_rows_ > 0 ? tmask_rows_ : 1, T) : 0;   // 2-arg call: 1 row
++    if (tmask_on) {
++        const size_t row_bytes = (size_t) n_vocab_ * sizeof(float);
++        const size_t bytes = (size_t) tmask_rows * row_bytes;
++        tmask_row_.resize((size_t) tmask_rows * n_vocab_);
++        if (cudaMemcpyAsync(tmask_row_.data(), head_logits_, bytes, cudaMemcpyDeviceToHost, cs_) != cudaSuccess ||
++            cudaStreamSynchronize(cs_) != cudaSuccess) {
++            err = "verify: reading the head logits for the token mask failed";
++            return false;
++        }
++        for (int t = 0; t < tmask_rows; ++t)
++            if (mask_apply_row(tmask_row_.data() + (size_t) t * n_vocab_, n_vocab_,
++                               tmask_ + (int64_t) t * tmask_words_, tmask_words_) == 0) {
++                err = "verify: the token mask allows no token (row " + std::to_string(t) + ")";
++                return false;
++            }
++        if (cudaMemcpyAsync(head_logits_, tmask_row_.data(), bytes, cudaMemcpyHostToDevice, cs_) != cudaSuccess) {
++            err = "verify: writing the masked head logits failed";
++            return false;
++        }
++    }
+     const bool sampled = !sampling_.greedy && sampling_.temperature > 0.0f;
+     if (head_sampling_ && (sampled || hist_d_ != nullptr || sampling_.logit_bias != nullptr)) {
+         SamplerParams sp = sampling_;
+@@ -3629,6 +3666,39 @@ bool Verifier::run(int T, const int32_t* tokens, int64_t pos0, PoolMultiFn pool,
+             err = "verify: the head sampling failed";
+             return false;
+         }
++    } // <- head sampling ends here
++    if (tmask_on) {   // 4-2: the mask's rows read the masked logits above.  A sampled/penalized request was
++                      // already picked there; a greedy one (or a window whose head sampling is off) picks here,
++                      // with the request's own sampler - the masked argmax for greedy, exact per row.
++        if (!(head_sampling_ && (sampled || hist_d_ != nullptr))) {
++            SamplerParams msp = sampling_;
++            msp.counter = (uint64_t) pos0;
++            sample_tokens(head_logits_, tmask_rows, (int) n_vocab_, hist_d_, hist_len_, msp, m_out_, cs_);
++            if (cudaStreamSynchronize(cs_) != cudaSuccess) {
++                err = "verify: the masked head sampling failed";
++                return false;
++            }
++        }
++        {   // the sampler's inverse-CDF can fall past the allowed tokens on rounding: never emit a masked one
++            volatile int32_t* o = (volatile int32_t*) h_out_;
++            for (int t = 0; t < tmask_rows; ++t) {
++                if (mask_allows(tmask_ + (int64_t) t * tmask_words_, tmask_words_, o[t])) continue;
++                const int32_t best = mask_argmax(tmask_row_.data() + (size_t) t * n_vocab_, n_vocab_,
++                                                 tmask_ + (int64_t) t * tmask_words_, tmask_words_);
++                static bool said = false;
++                if (!said) { said = true; std::fprintf(stderr, "strata serve: token mask: row %d: the sampler picked %d outside the mask; took %d (the best allowed)\n", t, (int) o[t], (int) best); }
++                o[t] = best;
++            }
++        }
++        // 4-3 (the part Phase 4 may only point at): the host rewrites above land in the MAPPED h_out_ before
++        // run()'s `out[t] = h_out_[t]` copy a few lines below, so the caller - generate.cpp's adoption loop, the
++        // emitted text and the next window's mtp.draft()/chain_launch input, all read after run() returns -
++        // sees the post-mask picks.  The sites that read h_out_/m_out_ WITHOUT this block are pl_finish() (the
++        // pipelined window: no mask block at all - safe today only because generate.cpp forces a masked
++        // request serial, pl_serial(req_mask)) and run_slots/run_slot_rows (the batch path, which never takes
++        // the mask).  If a later change pipelines or batches a masked window, the next window's MTP draft
++        // computation must not read m_out_/head_logits_ before these host writes are ordered - that ordering
++        // guarantee is Phase 5's (t_272c470b), not to be fixed here.
+     }
+     if (measure) {
+         for (int t = 0; t < T; ++t)
+diff --git a/src/program/generate.cpp b/src/program/generate.cpp
+index bfe8374b..aa587d90 100644
+--- a/src/program/generate.cpp
++++ b/src/program/generate.cpp
+@@ -185,6 +185,7 @@ bool draft_vocab_whole_head();       // STRATA_METAL_DRAFT_VOCAB=full
+ #include <cstdlib>
+ #include <cstring>
+ #include <filesystem>
++#include "strata/core/token_mask.hpp"
+ #include <fstream>
+ #include <sstream>
+ #include <exception>
+@@ -13688,7 +13689,7 @@ int main(int argc, char** argv) {
+                         "mtp_max=%d lookup=%d vram_free_mib=%lld cvec=%s arena_mib=%lld pool_workers=%d pcie_frac=%.2f "
+                         "spec_min_p=%.2f conversation_cache_mib=%lld conversation_cache_slots=%d "
+                         "conversation_cache_min_free_mib=%lld conversation_cache_min_tokens=%lld "
+-                        "tail_role_token=%lld vram_elastic=%d "
++                        "tail_role_token=%lld vram_elastic=%d token_mask=2 "
+                         "prefill_cap=%lld prefill_stages=%d stream_all_min=%lld prefill_pipe=%g%s engine=" STRATA_VERSION "\n",
+                         (long long) o.max_context, o.kv.c_str(),
+                         (long long) (g.n_qsa_layers() > 0 && ss.qsa_states[ss.qsa_primary()].kv_mode == 1
+@@ -15506,6 +15507,7 @@ int main(int argc, char** argv) {
+             // a parked conversation holding it stays parked) and a later request that resumes from it does not park the
+             // branch it leaves: N queries cost one prefix, not N.  Absent = as before.
+             int64_t req_pin = 0;
++            bool req_mask = false;   // mask=1: serve/constrain.py answers MQ before every window (token_mask.hpp)
+             // tuning keys (setup's calibration measures settings without restarting the engine): the PCIe share of
+             // the missed experts and the draft-probability floor, for this request only
+             double req_pcie_frac = o.pcie_frac, req_spec_min_p = o.spec_min_p;
+@@ -15560,6 +15562,7 @@ int main(int argc, char** argv) {
+                     else if (key == "pcie_frac") { req_pcie_frac = std::clamp((double) fv, 0.0, 1.0); req_pcie_set = true; }
+                     else if (key == "spec_min_p") { req_spec_min_p = std::clamp((double) fv, 0.0, 1.0); req_min_p_set = true; }
+                     else if (key == "draft") req_draft = tok.substr(eq + 1);
++                    else if (key == "mask") req_mask = std::atoi(tok.c_str() + eq + 1) != 0;
+                     else if (key == "pipe") req_pipe = std::max(0.0, (double) fv);
+                     else if (key == "aux_cpus") req_aux_cpus = std::atoi(tok.c_str() + eq + 1) != 0 ? 1 : 0;
+                     else if (key == "img_keys") {
+@@ -17844,6 +17847,11 @@ int main(int argc, char** argv) {
+             double dt_adapt_wait = 0, dt_adapt_join = 0;   // the tier's wait before a window / join after the draft (ms, summed)
+             const int64_t dt_sw0 = ajob ? a_swapped : adapt_nswaps;
+             int64_t dec_windows = 0, dec_T = 0;
++            // STRATA_MASK_STATS=1 (plan 3-4): this request's mask windows - MQ exchanges, the average rows asked
++            // for and answered, the average tokens adopted, the MQ round-trip ms per exchange
++            static const bool mask_stats = std::getenv("STRATA_MASK_STATS") != nullptr;
++            int64_t mk_exch = 0, mk_asked = 0, mk_rows = 0, mk_take = 0;
++            double mk_ms = 0.0;
+             const int64_t decode_hits0 = drive.d.cache_hits;
+             // CS-T: the RAM and file tiers of this request (the mmap source; 0 with the arena)
+             const int64_t ram0 = src.ram_reads(), files0 = src.file_reads();
+@@ -17864,7 +17872,8 @@ int main(int argc, char** argv) {
+             const bool pl_want = pipe && pl_pw >= 2 && pl_snap_ok;
+             const char* pl_serial = !pl_want ? nullptr
+                                   : hist_n > 0 ? "repetition penalties (penalty_last_n)"
+-                                  : mtp.coupled() ? "coupled draft sampling" : nullptr;
++                                  : mtp.coupled() ? "coupled draft sampling"
++                                  : req_mask ? "a JSON response format (token mask)" : nullptr;
+             if (pl_serial != nullptr) {   // said once per reason
+                 static std::set<std::string> said;
+                 if (said.insert(pl_serial).second)
+@@ -18562,6 +18571,13 @@ int main(int argc, char** argv) {
+             auto draft_df2 = [&](int) -> bool { return false; };
+ #endif
+             if (df2_trace != nullptr) std::fprintf(df2_trace, "# request prompt %lld df2 %d spec %d\n", (long long) n, req_df2 ? 1 : 0, S_mtp);
++            // the mask exchange now lives after the window's candidate and its drafts (plan 3-1): the drafts ride
++            // along on the MQ line and the server's row count shrinks the window (INFO token_mask=2).  The state
++            // persists across windows: an MF line's cut list also ends the NEXT window's drafts (plan 1-4).
++            bool gm_on = false;
++            std::vector<uint32_t> gm_words;
++            std::vector<int32_t> gm_cut;
++            int gm_rows = 0;
+             while (!pl_ran && !cancelled && produced_n < max_new) {
+                 int T = 1;
+                 policy.set_context(p);
+@@ -18664,17 +18680,62 @@ int main(int argc, char** argv) {
+                         chain_n = std::max(0, t - T);
+                     }
+                 }
+-                const int T_mtp = T;
++                int T_mtp = T;
+                 T += chain_n;
+-                const bool timed_round = !first_window;
+-                const Clock::time_point round0 = Clock::now();
+-                if (p + T > o.max_context) break;
+                 window[0] = x;
+                 for (int i = 1; i < T_mtp; ++i)
+                     window[(size_t) i] = merged     ? (int32_t) ids[(size_t) (p + i)]
+                                          : from_sfx ? sbuf[(size_t) i - 1]
+                                                     : drafts[(size_t) i - 1];
+                 for (int i = 0; i < chain_n; ++i) window[(size_t) (T_mtp + i)] = cbuf[(size_t) i];
++                // 1-4: a draft at a cut id (the end of the thinking, a tool call) ends the candidate there - the row
++                // holding the cut id can still be adopted, nothing past it (12: a think_end inside the window never
++                // lets the rows behind it run unconstrained)
++                if (!gm_cut.empty()) {
++                    for (int i = 1; i < T; ++i) {
++                        bool hit_cut = false;
++                        for (const int32_t c : gm_cut) hit_cut = hit_cut || window[(size_t) i] == c;
++                        if (!hit_cut) continue;
++                        if (i < T_mtp) chain_n = 0;
++                        else chain_n = i - T_mtp + 1;
++                        T = i + 1;
++                        break;
++                    }
++                }
++                // 3-1: the mask exchange, with this window's drafts on the MQ line.  The server looks them through
++                // the grammar and answers one mask row per draft it accepts (MK: one row, MKN: n rows); the row
++                // count is the grammar's own cap on the window.  STOP/cancel keeps its old check position.
++                gm_on = false;
++                gm_words.clear();
++                gm_cut.clear();
++                gm_rows = 0;
++                const Clock::time_point mq0 = Clock::now();
++                int mq_asked = 1;
++                if (req_mask) {
++                    std::printf("MQ");
++                    for (int i = 1; i < T; ++i) std::printf(" %d", (int) window[(size_t) i]);   // T == 1: a bare MQ
++                    std::printf("\n");
++                    std::fflush(stdout);
++                    mq_asked = T;
++                    std::string gm_line, gm_err;
++                    if (!next_line(gm_line)) { finish = "cancel"; break; }   // the server closed stdin
++                    if (!strata::core::mask_parse_reply_rows(gm_line, gm_on, gm_rows, gm_words, gm_cut, gm_err)) {
++                        std::fprintf(stderr, "strata serve: %s; the request ends\n", gm_err.c_str());
++                        finish = "cancel";
++                        break;
++                    }
++                    if (stop_req.load()) { finish = "cancel"; break; }
++                    if (gm_on && T > gm_rows) T = gm_rows;   // 3-1/5: T = min(T_cand, rows)
++                }
++                if (req_mask && mask_stats) {   // 3-4
++                    ++mk_exch;
++                    mk_asked += mq_asked;
++                    mk_rows += gm_on ? gm_rows : 0;
++                    mk_ms += std::chrono::duration<double, std::milli>(Clock::now() - mq0).count();
++                }
++                const bool timed_round = !first_window;
++                const Clock::time_point round0 = Clock::now();
++                if (p + T > o.max_context) break;
+                 if (!keep_sync()) { std::printf("ERR %s\n", err.c_str()); return 1; }
+                 drive.d.layers = 0;
+                 drive.d.experts = 0;
+@@ -18848,6 +18909,20 @@ int main(int argc, char** argv) {
+                     return 1;
+                 }
+                 tr("window", p, T);
++                // plan 7 (Phase 5, case A): the mask's rows go to verify whole - verify masks min(rows, T)
++                // rows (4-1/4-2), so every row of a multi-row window, the bonus row a included, picks from the
++                // masked distribution (case C).  No chain fix is needed: a masked request is forced serial
++                // (pl_serial "a JSON response format (token mask)" ~line 9818), so the pipelined
++                // chain_launch/chain_poll/set_source_R (10330-10355) never see a masked window; the serial
++                // drafter reads mtp.draft(T, outv...) ~10610, and outv is ver.run()'s post-mask out[] copy -
++                // the host re-picks land in the mapped h_out_ before that copy (verify.cpp mask block
++                // 2039-2120, plan 4-3), so the next window drafts from the tokens actually emitted, never the
++                // pre-mask argmax (case B does not apply).  R commit: acceptance compares the drafts against
++                // the masked outv below, so a mask rewrite at row t caps a at t and ver.commit(a + 1) commits
++                // exactly the rows whose inputs match the emitted tokens.
++                const int64_t gm_n_words = gm_on && gm_rows > 0 ? (int64_t) gm_words.size() / gm_rows : 0;
++                ver.set_token_mask(gm_on ? gm_words.data() : nullptr, gm_on ? gm_n_words : 0,
++                                   gm_on ? gm_rows : 1);
+                 const Clock::time_point tw0 = Clock::now();
+                 // STRATA_SPEC_PROB: the MTP drafts' distributions q, judged by rejection sampling (core/spec_prob.hpp);
+                 // a suffix window and the lookup chain's tail are point masses and keep the exact-match rule
+@@ -18878,6 +18953,8 @@ int main(int argc, char** argv) {
+                 }
+                 int a = merged ? T - 1 : 0;   // a merged window commits every row, as the prompt windows do
+                 while (a < T - 1 && window[(size_t) a + 1] == outv[(size_t) a]) ++a;
++                if (gm_on) ver.set_token_mask(nullptr, 0);
++                a = strata::core::mask_cut_accepted(outv.data(), a, gm_cut);   // free window: nothing past </think>
+ #if defined(STRATA_USE_HIP)
+                 // A merged window contains prompt rows: every one must still be committed.
+                 // Otherwise do not cache accepted rows whose outputs this request cannot emit.
+@@ -18942,6 +19019,7 @@ int main(int argc, char** argv) {
+                 if (!merged) {   // (a merged window's rows are prompt tokens, not drafts)
+                     draft_offered += T - 1;
+                     draft_accepted += a;
++                    if (req_mask && mask_stats) mk_take += a + 1;   // 3-4: adopted tokens per mask window
+                 }
+                 const bool initial_round = first_window;   // a single-row window: no proposal to learn from
+                 first_window = false;
+@@ -19112,6 +19190,13 @@ int main(int argc, char** argv) {
+                 }
+             }
+             if (drive.d.fs) std::fprintf(stderr, "strata serve: %s\n", drive.d.fs->report().c_str());
++            if (mask_stats && mk_exch > 0) {   // 3-4: one line per request, STRATA_MASK_STATS=1
++                const double w = (double) mk_exch;
++                std::fprintf(stderr, "strata mask stats: %lld MQ exchanges, avg rows asked %.2f, avg rows back %.2f, "
++                                     "avg adopted %.2f, MQ round-trip %.2f ms\n",
++                             (long long) mk_exch, (double) mk_asked / w, (double) mk_rows / w, (double) mk_take / w,
++                             mk_ms / w);
++            }
+             if (!cancelled) {
+                 // a prompt stopped halfway leaves the session somewhere between two chunks: nothing to continue from
+                 // (the checkpoints taken while reading it are still good)
+diff --git a/sycl/include/strata/core/verify.hpp b/sycl/include/strata/core/verify.hpp
+index d17b4480..2d2b5cba 100644
+--- a/sycl/include/strata/core/verify.hpp
++++ b/sycl/include/strata/core/verify.hpp
+@@ -116,6 +116,17 @@ public:
+     /// picks are discarded - a prompt read through windows commits every token - so they cost no sampler launch
+     /// or sync and never read a history staged for another position.
+     void set_head_sampling(bool on) { head_sampling_ = on; if (next_) next_->set_head_sampling(on); }
++    /// serve's constrained decoding (token_mask.hpp): the next run() sets every head logit of row 0 outside the
++    /// mask to kMaskedLogit and samples row 0 again with the request's sampling.  The engine sets it for a T = 1
++    /// window and clears it after (null).  `words` must stay alive until then.
++    void set_token_mask(const uint32_t* words, int64_t n_words) {
++        tmask_ = words;
++        tmask_words_ = n_words;
++        if (next_) next_->set_token_mask(words, n_words);
++    }
++    const uint32_t* tmask_ = nullptr;
++    int64_t tmask_words_ = 0;
++    std::vector<float> tmask_row_;
+ 
+     /// LAYER SPLIT (multi-GPU): this verifier runs layers [layer_begin, layer_end) of every window.  A stage that
+     /// does not start at layer 0 takes its residual from `handoff_in` instead of embedding the tokens; a stage that
+diff --git a/sycl/src/core/verify.cpp b/sycl/src/core/verify.cpp
+index 580f2842..4768be8a 100644
+--- a/sycl/src/core/verify.cpp
++++ b/sycl/src/core/verify.cpp
+@@ -8,6 +8,7 @@
+ #include "strata/kernels/dflash2.hpp"
+ #include "strata/core/remote_expert_opt.hpp"
+ #include "strata/core/dma_batch.hpp"
++#include "strata/core/token_mask.hpp"
+ #if defined(_WIN32)
+ #include <intrin.h>
+ #endif
+@@ -2582,6 +2583,29 @@ bool Verifier::run(int T, const int32_t *tokens, int64_t pos0, PoolMultiFn pool,
+             err = "verify: the head sampling failed";
+             return false;
+         }
++    } // <- head sampling ends here
++    if (tmask_ != nullptr && head_logits_ != nullptr && n_vocab_ > 0) {   // serve's token mask: row 0 (T = 1)
++        tmask_row_.resize((size_t) n_vocab_);
++        const size_t bytes = (size_t) n_vocab_ * sizeof(float);
++        cs_->memcpy(tmask_row_.data(), head_logits_, bytes).wait();
++        if (mask_apply_row(tmask_row_.data(), n_vocab_, tmask_, tmask_words_) == 0) {
++            err = "verify: the token mask allows no token";
++            return false;
++        }
++        SamplerParams msp = sampling_;
++        msp.counter = (uint64_t) pos0;
++        cs_->memcpy(head_logits_, tmask_row_.data(), bytes).wait();
++        sample_tokens(head_logits_, 1, (int) n_vocab_, hist_d_, hist_len_, msp, m_out_, cs_);
++        cs_->wait();
++        {   // the sampler's inverse-CDF can fall past the allowed tokens on rounding: never emit a masked one
++            volatile int32_t* o = (volatile int32_t*) h_out_;
++            if (!mask_allows(tmask_, tmask_words_, o[0])) {
++                const int32_t best = mask_argmax(tmask_row_.data(), n_vocab_, tmask_, tmask_words_);
++                static bool said = false;
++                if (!said) { said = true; std::fprintf(stderr, "strata serve: token mask: the sampler picked %d outside the mask; took %d (the best allowed)\n", (int) o[0], (int) best); }
++                o[0] = best;
++            }
++        }
+     }
+     for (int t = 0; t < T; ++t) out[t] = ((volatile int32_t*) h_out_)[t];
+     if (static const bool dbg = std::getenv("STRATA_DBG_NAN") != nullptr; dbg) {   // debug: the first non-finite head
+diff --git a/sycl/src/program/generate.cpp b/sycl/src/program/generate.cpp
+index 22114dd4..b3ad2ca8 100644
+--- a/sycl/src/program/generate.cpp
++++ b/sycl/src/program/generate.cpp
+@@ -127,6 +127,7 @@ namespace strata::prefill { void set_nonresident_share(double share); }   // SYC
+ #include <cstdlib>
+ #include <cstring>
+ #include <filesystem>
++#include "strata/core/token_mask.hpp"
+ #include <fstream>
+ #include <sstream>
+ #include <string>
+@@ -9094,7 +9095,7 @@ int main(int argc, char **argv) try {
+                         "expert_slots_primary=%lld expert_cache_primary_mib=%lld spec=%d "
+                         "mtp_max=%d lookup=%d vram_free_mib=%lld cvec=%s arena_mib=%lld pool_workers=%d pcie_frac=%.2f "
+                         "spec_min_p=%.2f conversation_cache_mib=%lld conversation_cache_slots=%d "
+-                        "conversation_cache_min_free_mib=%lld tail_role_token=%lld vram_elastic=%d%s engine=" STRATA_VERSION "\n",
++                        "conversation_cache_min_free_mib=%lld tail_role_token=%lld vram_elastic=%d%s token_mask=1 engine=" STRATA_VERSION "\n",
+                         (long long) o.max_context, o.kv.c_str(),
+                         (long long) (g.n_qsa_layers() > 0 && ss.qsa_states[ss.qsa_primary()].kv_mode == 1
+                                          ? ss.qsa_states[ss.qsa_primary()].n_slots * 4 : 0),
+@@ -10105,6 +10106,7 @@ int main(int argc, char **argv) try {
+             int req_penalty_last_n = 0;
+             long long req_pen_from = -1;   // pen_from=N: this request continues one that began at token N (the last token of the original prompt): the penalty window starts there
+             int req_cvec = 1;   // cvec=0|1: a loaded control vector for this request (on when absent)
++            bool req_mask = false;   // mask=1: serve/constrain.py answers MQ before every window (token_mask.hpp)
+             // SYCL port: logprobs=K (0..20) - after each "T id" an "LP logprob id:logprob ..." line with the token's
+             // log-probability and the K most likely tokens', from the verify window's head logits (before sampling,
+             // penalties and temperature). -1 (absent): no LP lines; a server that does not ask never sees one.
+@@ -10161,6 +10163,7 @@ int main(int argc, char **argv) try {
+                     }
+                     else if (key == "pcie_frac") req_pcie_frac = std::clamp((double) fv, 0.0, 1.0);
+                     else if (key == "spec_min_p") req_spec_min_p = std::clamp((double) fv, 0.0, 1.0);
++                    else if (key == "mask") req_mask = std::atoi(tok.c_str() + eq + 1) != 0;
+                     else if (key == "img_keys") {
+                         req_img_keys.clear();
+                         const char* q = tok.c_str() + eq + 1;
+@@ -11283,7 +11286,8 @@ int main(int argc, char **argv) try {
+             const bool pl_want = pipe && pl_pw >= 2 && pl_snap2[0] != nullptr;
+             const char* pl_serial = !pl_want ? nullptr
+                                   : hist_n > 0 ? "repetition penalties (penalty_last_n)"
+-                                  : mtp.coupled() ? "coupled draft sampling" : nullptr;
++                                  : mtp.coupled() ? "coupled draft sampling"
++                                  : req_mask ? "a JSON response format (token mask)" : nullptr;
+             if (pl_serial != nullptr) {   // said once per reason
+                 static std::set<std::string> said;
+                 if (said.insert(pl_serial).second)
+@@ -12023,6 +12027,22 @@ int main(int argc, char **argv) try {
+                 return true;
+             };
+             while (!pl_ran && !cancelled && produced_n < max_new) {
++                // serve/constrain.py: the server's token mask for this window (token_mask.hpp); MF = free, MK = masked
++                bool gm_on = false;
++                std::vector<uint32_t> gm_words;
++                std::vector<int32_t> gm_cut;
++                if (req_mask) {
++                    std::printf("MQ\n");
++                    std::fflush(stdout);
++                    std::string gm_line, gm_err;
++                    if (!next_line(gm_line)) { finish = "cancel"; break; }   // the server closed stdin
++                    if (!strata::core::mask_parse_reply(gm_line, gm_on, gm_words, gm_cut, gm_err)) {
++                        std::fprintf(stderr, "strata serve: %s; the request ends\n", gm_err.c_str());
++                        finish = "cancel";
++                        break;
++                    }
++                    if (stop_req.load()) { finish = "cancel"; break; }
++                }
+                 bool dfr_lookup = false;
+                 int dfr_T = 0, dfr_match = 0;
+                 if (df2_deferred) {   // the draft skipped for a long lookup match: the lookup if the policy takes it, else the draft now (same taps and rows)
+@@ -12048,12 +12068,13 @@ int main(int argc, char **argv) try {
+                     wr.draft_conf = o.draft_conf; wr.dprob = dprob.data();
+                     T = strata::spec::choose_window(wr);
+                 }
++                if (gm_on) T = 1;   // a masked window is one row (token_mask.hpp): the mask exchange's reply governs
+                 if (first_window) T = 1;
+                 // a repeat of earlier context (prompt lookup) where the MTP's own first guess agrees: the policy takes it
+                 // when its expected tokens per ms, from the measured acceptance and window costs, beat the MTP window's
+                 bool from_sfx = false;
+                 int sfx_match = 0;
+-                if (o.suffix_draft > 0 && !first_window) {
++                if (!gm_on && o.suffix_draft > 0 && !first_window) {
+                     const int k = sfx.propose(S - 1, sbuf.data());
+                     sfx_match = sfx.last_match();
+                     if (k > 0 && (!draft_on || sbuf[0] == drafts[0])) {
+@@ -12061,13 +12082,13 @@ int main(int argc, char **argv) try {
+                         if (pk.lookup) { T = pk.t; from_sfx = true; }
+                     }
+                 }
+-                if (dfr_lookup) {   // the lookup window chosen before the draft (the draft was skipped)
++                if (dfr_lookup && !gm_on) {   // the lookup window chosen before the draft (the draft was skipped); never under the mask: a masked window is one row (token_mask.hpp)
+                     sfx.propose(S - 1, sbuf.data());
+                     T = dfr_T; from_sfx = true; sfx_match = dfr_match;
+                 }
+                 // --lookup-chain: what followed an earlier occurrence of the context + the MTP's drafts, after them
+                 int chain_n = 0, cm = 0;
+-                if (o.lookup_chain > 0 && !first_window && !from_sfx && T < S) {
++                if (!gm_on && o.lookup_chain > 0 && !first_window && !from_sfx && T < S) {
+                     int csrc = -1;
+                     const int nt = chain_tail(sfx, drafts.data(), T - 1, ctail);
+                     chain_n = strata::spec::propose_from_sources(lookup_src, ctail.data(), nt, T - 1,
+@@ -12123,6 +12144,7 @@ int main(int argc, char **argv) try {
+                     return 1;
+                 }
+                 tr("window", p, T);
++                ver.set_token_mask(gm_on ? gm_words.data() : nullptr, gm_on ? (int64_t) gm_words.size() : 0);
+                 const Clock::time_point tw0 = Clock::now();
+                 if (!ver.run(T, window.data(), p, win_pool_fn, win_pool_user, outv.data(), err) || drive.d.failed) {
+                     std::printf("ERR %s\n", drive.d.failed && drive.d.fail ? drive.d.fail : err.c_str());
+@@ -12138,6 +12160,8 @@ int main(int argc, char **argv) try {
+                 }
+                 int a = 0;
+                 while (a < T - 1 && window[(size_t) a + 1] == outv[(size_t) a]) ++a;
++                if (gm_on) ver.set_token_mask(nullptr, 0);
++                a = strata::core::mask_cut_accepted(outv.data(), a, gm_cut);   // free window: nothing past </think>
+                 if (!fol.empty() && fol_lp != nullptr && !ver.window_logprobs(fol_tgt, a + 1, produced_n, -1, fol_lp, err)) {
+                     std::printf("ERR %s\n", err.c_str());
+                     return 1;

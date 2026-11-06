@@ -3250,6 +3250,10 @@ bool Verifier::run(int T, const int32_t* tokens, int64_t pos0, PoolMultiFn pool,
         }
     }
     strata::metal_engine::window_set_token_mask(metal_, tmask_, tmask_words_, tmask_rows_);
+    struct MetalMaskBorrow {
+        void* window;
+        ~MetalMaskBorrow() { strata::metal_engine::window_set_token_mask(window, nullptr, 0, 0); }
+    } mask_borrow{metal_};
     return strata::metal_engine::window_run(metal_, T, tokens, pos0, head_sampling_, out, err);
 #endif
     using namespace strata::kernels;

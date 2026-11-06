@@ -1,0 +1,25 @@
+{
+  "release": "v0.2.11-p1",
+  "upstream_release": "v0.2.11",
+  "upstream_commit": "c3b3f5035506f3e966f1b4b7b188aeaabae92f1d",
+  "patch_revision": 1,
+  "component_version": "0.1.57.1",
+  "repository": "tuhochi/Strata",
+  "distribution_branch": "patched",
+  "minimum_macos": "15.0",
+  "llama_cpp_commit": "3cf03257f219afbe7334045ff7c6a06ac68c627d",
+  "metal_cpp_url": "https://developer.apple.com/metal/cpp/files/metal-cpp_26.zip",
+  "metal_cpp_sha256": "4df3c078b9aadcb516212e9cb03004cbc5ce9a3e9c068fa3144d021db585a3a4",
+  "upstream_patches": [
+    {
+      "pr": 3800,
+      "commit": "fc2c1ebb7fcc33465d7e2443165112339344b56d",
+      "author": "ncphri"
+    },
+    {
+      "pr": 4222,
+      "commit": "ed7f0d1eadbb79912af6aea82afad4e5ee8b443c",
+      "author": "ncphri"
+    }
+  ]
+}
