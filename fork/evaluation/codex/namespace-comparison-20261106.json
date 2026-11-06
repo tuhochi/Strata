@@ -1,0 +1,20 @@
+[
+  {
+    "namespace": false,
+    "http_status": 200,
+    "response_status": "completed",
+    "error": null,
+    "output_text": [
+      "OK"
+    ],
+    "seconds": 0.609
+  },
+  {
+    "namespace": true,
+    "http_status": 500,
+    "response_status": null,
+    "error": "strict tool names must be unique ASCII identifiers",
+    "output_text": [],
+    "seconds": 0.003
+  }
+]

@@ -1,0 +1,16 @@
+{
+  "source_commit": "876810e2",
+  "client": "Codex CLI 0.166.0",
+  "server": "patched Python service on loopback with ByteTokenizer and MockEngine; no real model",
+  "launcher": "codexnext",
+  "configuration": "provider base URL changed for this invocation only; transport retries disabled for diagnostic run",
+  "exit_code": 0,
+  "final_answer": "OK",
+  "namespace_name_error_present": false,
+  "strict_guard_environment": "unset",
+  "limits": [
+    "CPU/mock client integration only; no patched real-model hardware run",
+    "Separate model metadata and MCP transport warnings remain",
+    "Fixture token counts are not hardware performance measurements"
+  ]
+}

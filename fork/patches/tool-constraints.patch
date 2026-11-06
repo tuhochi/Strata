@@ -19,10 +19,20 @@ index e2c75316..d0311206 100644
 +          env -u STRATA_TOOL_MASK -u STRATA_TOOL_NAME_ENUM -u STRATA_TOOL_MASK_STRICT \
 +            "$RUNNER_TEMP/strata-runtime-venv/bin/python" -m unittest serve.test_tool_name_constraint serve.test_constrain serve.test_structured
 diff --git a/docs/DETAILS.md b/docs/DETAILS.md
-index d2c0bb19..97318044 100644
+index d2c0bb19..798f2ac8 100644
 --- a/docs/DETAILS.md
 +++ b/docs/DETAILS.md
-@@ -546,8 +546,9 @@ applies at the next start. Network, key, MCP and program keys are not editable t
+@@ -520,6 +520,9 @@ applies at the next start. Network, key, MCP and program keys are not editable t
+   guessed: `bash` is not `shell`, and a reordered name (`server1_label_values` for `label_values_mcp_server1`) is not the declared one.
+   A call whose envelope drifted by a token (`<=NAME>`,
+   `<function:NAME>` or `<NAME>` instead of `<function=NAME>`) is read as the call when NAME is a declared tool.
++- The persistent tool-name mask accepts Responses namespaces as exact qualified names (`namespace.member`).
++  A dot separates non-empty ASCII name segments; it is escaped in grammar regexes and cannot match another
++  character. Namespace and member are returned separately in Responses tool-call items, as before.
+ - **What the parser repairs, and what it leaves.** A string argument that quotes a whole tool call, or repeats its own
+   `</parameter><parameter=NAME>`, stays exact (#4078). A call whose `</function>` was left out is read as the call (#4427), in the
+   answer and inside the thinking. An argument the tool declares as an array or an object, or declares nothing for, is read as
+@@ -546,8 +549,9 @@ applies at the next start. Network, key, MCP and program keys are not editable t
    there a call for an undeclared name is returned as a `tool_use`: Claude Code runs it, where text ended the turn.
  - JSON output: `response_format: {"type":"json_object"}` or `{"type":"json_schema", ...}` on `/v1/chat/completions`. The schema
    must accept only JSON objects at its root (`"type":"object"`, or `anyOf`/`oneOf` of object schemas). Local `#` references
@@ -34,7 +44,7 @@ index d2c0bb19..97318044 100644
    without it the answer is only checked to be one JSON object. Malformed output returns **502** with
    `error.code: structured_output_failed`, an invalid schema **400**. JSON formats combined with tools or MCP are refused.
    Streaming buffers the answer and emits content only after validation. Math answers often hold LaTeX such as `\alpha`, which is
-@@ -612,6 +613,37 @@ applies at the next start. Network, key, MCP and program keys are not editable t
+@@ -612,6 +616,37 @@ applies at the next start. Network, key, MCP and program keys are not editable t
    `STRATA_NAN_INJECT=<n>[,<n>...]` flags the n-th checked window to test the path. The one-shot command line and the
    Intel (SYCL) port do not check.
  
@@ -376,10 +386,10 @@ index 19b446ff..3a4559c2 100644
  markupsafe==3.0.3
 diff --git a/serve/constrain.py b/serve/constrain.py
 new file mode 100644
-index 00000000..a9aff75d
+index 00000000..66954c3a
 --- /dev/null
 +++ b/serve/constrain.py
-@@ -0,0 +1,749 @@
+@@ -0,0 +1,751 @@
 +"""serve/constrain.py - constrained decoding for the JSON response formats: a token mask per step, from llguidance.
 +
 +The engine (strata --serve, `mask=1` on GEN, INFO token_mask=1, or token_mask=2 when it can mask a whole MTP
@@ -551,13 +561,15 @@ index 00000000..a9aff75d
 +    return rf
 +
 +
-+_NAME_SAFE = re.compile(r"[A-Za-z0-9_-]+")    # a tool name safe to put in a grammar regex literal
++# Responses namespaces are flattened internally as namespace.member. Match
++# qualified ASCII segments; grammar regexes must escape the literal dots.
++_NAME_SAFE = re.compile(r"[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*")
 +
 +
 +def safe_tool_names(tools) -> list[str]:
 +    """The declared tool names a grammar can enumerate: the request's tools array (template form {name, ...} or
 +    OpenAI form {type: function, function: {name, ...}} - the same array the route built from its own
-+    template_tools()/openai_tools() call), filtered to [A-Za-z0-9_-]+. The server's persistent guard rejects
++    template_tools()/openai_tools() call), filtered to qualified ASCII identifiers. The server's persistent guard rejects
 +    the request if any name is filtered out; direct grammar callers choose their own invalid-name policy."""
 +    out = []
 +    for t in tools or []:
@@ -634,7 +646,7 @@ index 00000000..a9aff75d
 +                 "answer: calls | PROSE",
 +                 "PROSE: /[^<][\\s\\S]*/"]
 +        if names:
-+            alt = "|".join(sorted(names, key=lambda n: (-len(n), n)))
++            alt = "|".join(re.escape(n) for n in sorted(names, key=lambda n: (-len(n), n)))
 +            lines += [f'calls: {vocab.literal(TOOL_CALL)} WS? NAME REST',
 +                      f"NAME: /(?:{alt})[\\s<]/",
 +                      "REST: /[\\s\\S]*/"]
@@ -692,9 +704,9 @@ index 00000000..a9aff75d
 +            # (?![\w-]) is replaced by a mandatory delimiter class [\s<] after the alternation (measured in
 +            # scratch/t3v_corr.py: with a prefix pair like exec/exec_command the grammar stays on the longer
 +            # branch after 'exec', pinning the longest name).  Longest-first ordering keeps that pinning for
-+            # llguidance's prioritized alternation.  Names are pre-filtered to [A-Za-z0-9_-]+ by _NAME_SAFE,
-+            # so no regex metacharacter can enter the literal (no re.escape needed).
-+            alt = "|".join(sorted(names, key=lambda n: (-len(n), n)))
++            # llguidance's prioritized alternation. Qualified names contain dots:
++            # escape each name so the separator cannot match an arbitrary byte.
++            alt = "|".join(re.escape(n) for n in sorted(names, key=lambda n: (-len(n), n)))
 +            lines += [f'calls: {vocab.literal(TOOL_CALL)} WS? NAME REST',
 +                      f"NAME: /(?:{alt})[\\s<]/",
 +                      "REST: /[\\s\\S]*/"]
@@ -936,7 +948,7 @@ index 00000000..a9aff75d
 +
 +
 +class ToolNameConstraint:
-+    """Opt-in, persistent Qwen XML name mask, including thinking and every call.
++    """Persistent Qwen XML name mask, including thinking and every call.
 +
 +    Unlike the original answer|calls grammar, prose and the end of a name never
 +    release this guard. It is a byte automaton over the tokenizer's real pieces,
@@ -2559,18 +2571,23 @@ index f0e2c74a..18714064 100644
      unittest.main()
 diff --git a/serve/test_tool_name_constraint.py b/serve/test_tool_name_constraint.py
 new file mode 100644
-index 00000000..9b7736e2
+index 00000000..883d2826
 --- /dev/null
 +++ b/serve/test_tool_name_constraint.py
-@@ -0,0 +1,228 @@
+@@ -0,0 +1,349 @@
 +"""Names must stay constrained across prose, thinking, multiple calls and MTP windows."""
 +import base64
++import json
++import urllib.error
++import urllib.request
++from pathlib import Path
 +import os
 +import threading
 +import unittest
 +from types import SimpleNamespace
 +from unittest.mock import patch
 +
++from serve import responses as R
 +from serve import constrain as C
 +from serve.server import Service, ByteTokenizer
 +
@@ -2663,6 +2680,70 @@ index 00000000..9b7736e2
 +        with patch.dict(os.environ, {}, clear=True), patch.object(C, 'available', return_value=False):
 +            with self.assertRaisesRegex(ValueError, 'llguidance'):
 +                self.app()._with_constraint({}, [{'name': 'sql_query'}], False)
++
++    def test_responses_namespace_names_activate_exact_guard(self):
++        req = {'tools': [{'type': 'namespace', 'name': 'diagnostic', 'tools': [
++            {'type': 'function', 'name': 'ping', 'parameters': {'type': 'object'}}]}]}
++        tools, names, _ = R.request_tools(req)
++        self.assertEqual(names['diagnostic.ping'], ('diagnostic', 'ping', 'function'))
++        with patch.dict(os.environ, {}, clear=True):
++            guard = self.app()._with_constraint({}, tools, False)[C.KEY]
++        self.feed(guard, '<function=diagnostic')
++        self.assertTrue(C.Constraint.allowed(guard.mask(), ord('.')))
++        self.assertFalse(C.Constraint.allowed(guard.mask(), ord('X')))
++        self.feed(guard, '.ping')
++        self.assertTrue(C.Constraint.allowed(guard.mask(), ord('>')))
++        self.assertFalse(C.Constraint.allowed(guard.mask(), ord('_')))
++
++    def test_namespace_lookahead_keeps_unknown_members_blocked(self):
++        guard = C.ToolNameConstraint(self.vocab, ['diagnostic.ping'])
++        self.feed(guard, '<function=diagnostic')
++        before = guard.mask()
++        reply = guard.reply(list(b'.pingX')).split()
++        self.assertEqual(reply[:2], ['MKN', '6'])
++        last = base64.b64decode(reply[-1])
++        self.assertTrue(C.Constraint.allowed(last, ord('>')))
++        self.assertFalse(C.Constraint.allowed(last, ord('X')))
++        self.assertEqual(guard.mask(), before)
++
++    def test_qualified_names_reject_empty_segments_and_metacharacters(self):
++        for name in ['.ping', 'diagnostic.', 'diagnostic..ping', 'a.*', 'a|b',
++                     'a/b', 'a\\b', 'a>ping', 'a ping', 'a.ä']:
++            with self.subTest(name=name):
++                self.assertEqual(C.safe_tool_names([{'name': name}]), [])
++                with self.assertRaises(ValueError):
++                    C.ToolNameConstraint(self.vocab, [name])
++        self.assertEqual(C.safe_tool_names([{'name': 'a-b.c_d'}, {'name': 'a.b.c'}]),
++                         ['a-b.c_d', 'a.b.c'])
++
++    def test_namespace_dots_are_literal_in_both_legacy_grammar_paths(self):
++        for fmt in [None, {'type': 'json_object'}]:
++            for name in ['diagnostic.ping', 'diag-nostic.pi_ng']:
++                with self.subTest(format=fmt, name=name):
++                    c = C.Constraint(self.vocab, C.grammar(fmt, True, self.vocab,
++                                     tool_names=[name]), armed=True)
++                    # Bypass legacy release-at-delimiter logic; inspect the matcher.
++                    prefix = '<tool_call>' + name.split('.')[0]
++                    for token in self.tok.encode(prefix, parse_special=True):
++                        self.assertTrue(c.m.consume_token(token))
++                    mask = c.m.compute_bitmask()
++                    self.assertTrue(C.Constraint.allowed(mask, ord('.')))
++                    self.assertFalse(C.Constraint.allowed(mask, ord('X')))
++
++    def test_custom_call_grammar_accepts_literal_qualified_name(self):
++        fmt = {'type': 'custom_calls', 'entries': [
++            {'name': 'diagnostic.ping', 'definition': '[a-z]+'}]}
++        c = C.Constraint(self.vocab, C.grammar(fmt, False, self.vocab), armed=True)
++        for token in self.tok.encode('<tool_call>\n<function=diagnostic', parse_special=True):
++            self.assertTrue(c.m.consume_token(token))
++        mask = c.m.compute_bitmask()
++        self.assertTrue(C.Constraint.allowed(mask, ord('.')))
++        self.assertFalse(C.Constraint.allowed(mask, ord('X')))
++
++    def test_duplicate_qualified_names_still_fail_closed(self):
++        with patch.dict(os.environ, {}, clear=True):
++            with self.assertRaisesRegex(ValueError, 'unique ASCII'):
++                self.app()._with_constraint({}, [{'name': 'diagnostic.ping'}] * 2, False)
 +
 +    def guard(self):
 +        return C.ToolNameConstraint(self.vocab, ['sql_query', 'exec', 'exec_command'])
@@ -2787,6 +2868,58 @@ index 00000000..9b7736e2
 +        with patch.dict(os.environ, {'STRATA_TOOL_MASK_STRICT': '1'}):
 +            with self.assertRaises(ValueError):
 +                app._with_constraint({}, [{'name': 'sql_query'}], thinking=False)
++
++
++@unittest.skipUnless(C.available(), 'llguidance required')
++class NamespaceResponsesTests(unittest.TestCase):
++    def test_namespace_call_and_result_round_trip_with_json_and_streaming(self):
++        from serve.server import MockEngine, serve
++        from serve.frontend import ChatTemplate
++        call = ('<tool_call>\n<function=diagnostic.ping>\n<parameter=value>\n7\n'
++                '</parameter>\n</function>\n</tool_call>')
++        for stream in [False, True]:
++            with self.subTest(stream=stream), patch.dict(os.environ, {}, clear=True):
++                tok = ByteTokenizer()
++                engine = MockEngine(tok, [call, '{"result":7}'], max_context=16384)
++                engine.supports_mask = True
++                svc = Service(engine, tok, ChatTemplate(Path(__file__).parent / 'chat_template.jinja'))
++                httpd = serve(svc, port=0)
++                self.addCleanup(httpd.server_close)
++                self.addCleanup(httpd.shutdown)
++                body = {'input': [{'role': 'user', 'content': 'Call diagnostic.ping with value 7.'}],
++                        'tools': [{'type': 'namespace', 'name': 'diagnostic', 'tools': [
++                            {'type': 'function', 'name': 'ping', 'parameters': {'type': 'object',
++                             'properties': {'value': {'type': 'integer'}}, 'required': ['value']}}]}],
++                        'reasoning': {'effort': 'none'}, 'store': False, 'stream': stream,
++                        'max_output_tokens': 256, 'text': {'format': {'type': 'json_schema',
++                         'name': 'answer', 'strict': True, 'schema': {'type': 'object',
++                         'properties': {'result': {'type': 'integer'}}, 'required': ['result'],
++                         'additionalProperties': False}}}}
++                def post():
++                    request = urllib.request.Request('http://127.0.0.1:' + str(httpd.server_port) +
++                        '/v1/responses', data=json.dumps(body).encode(),
++                        headers={'Content-Type': 'application/json'})
++                    try:
++                        response = urllib.request.urlopen(request, timeout=10)
++                    except urllib.error.HTTPError as error:
++                        self.fail('HTTP ' + str(error.code) + ': ' + error.read().decode())
++                    with response:
++                        text = response.read().decode()
++                    if not stream:
++                        return json.loads(text)
++                    events = [json.loads(line[6:]) for line in text.splitlines()
++                              if line.startswith('data: {')]
++                    return next(e['response'] for e in events if e['type'] == 'response.completed')
++                first = post()
++                calls = [x for x in first['output'] if x['type'] == 'function_call']
++                self.assertEqual(len(calls), 1)
++                self.assertEqual((calls[0]['namespace'], calls[0]['name']), ('diagnostic', 'ping'))
++                self.assertEqual(json.loads(calls[0]['arguments']), {'value': 7})
++                body['input'] += [calls[0], {'type': 'function_call_output',
++                                            'call_id': calls[0]['call_id'], 'output': '7'}]
++                second = post()
++                answer = next(x for x in second['output'] if x['type'] == 'message')
++                self.assertEqual(json.loads(answer['content'][0]['text']), {'result': 7})
 +
 +
 +if __name__ == '__main__':
