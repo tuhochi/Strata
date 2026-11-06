@@ -22,10 +22,13 @@
     "tests/terminal/test_launch_tui.py",
     "tests/terminal/test_launch_tui_walk.py",
     "tests/terminal/test_sycl_package.py",
+    "tests/terminal/test_update_with_model_ds.py",
     "docs/DETAILS.md",
     "include/strata/core/token_mask.hpp",
     "include/strata/core/verify.hpp",
     "tools/test_docker_entrypoint.py",
+    "tools/test_setup_download.py",
+    "tools/test_setup_unsloth.py",
     "requirements.txt",
     "serve/constrain.py",
     "serve/fake_mask_engine.py",
@@ -46,5 +49,5 @@
     "metal/src/engine/window.cpp",
     "metal/CMakeLists.txt"
   ],
-  "sha256": "85b8c5a9778431dc9a6b3c33355da0266f1550ecdbd6a89af870981f4f0b7111"
+  "sha256": "47fed67124deb85d275712424a077e2a2b4a4842c946c853b0072250220282ca"
 }
