@@ -1,0 +1,38 @@
+{
+  "source_commit": "9c048120e5863367285f0eb876c3cf1b2bd9586b",
+  "scope": "JSON/name mask width composition; no uniqueItems support added",
+  "red_green": {
+    "new_tests": 3,
+    "suite_tests": 10,
+    "before_errors": 3,
+    "after_errors": 0,
+    "real_llguidance": "1.9.1",
+    "boundaries": [
+      287,
+      288,
+      289,
+      319,
+      320,
+      321
+    ],
+    "includes": [
+      "all real token bits",
+      "MTP lookahead rollback",
+      "EOS after complete JSON",
+      "truncated and unaligned mask rejection"
+    ]
+  },
+  "fork_regressions": {
+    "tests": 94,
+    "passed": 94
+  },
+  "package_contracts": {
+    "tests": 21,
+    "passed": 21,
+    "subtests_passed": 16
+  },
+  "macos_build": "Metal engine and image reader built; CLI relocation and signed install verified",
+  "installed_ARM_regression": "passed, actual packaged Python/llguidance, 320-token composition and lookahead",
+  "model_inference": "not run on atlas; owner-managed macstudio API verification pending",
+  "upstream_submission": "none"
+}

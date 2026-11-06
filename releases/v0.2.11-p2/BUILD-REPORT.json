@@ -1,0 +1,68 @@
+{
+  "release": "v0.2.11-p2",
+  "source_commit": "9c048120e5863367285f0eb876c3cf1b2bd9586b",
+  "provenance": {
+    "release": "v0.2.11-p2",
+    "upstream_release": "v0.2.11",
+    "upstream_commit": "c3b3f5035506f3e966f1b4b7b188aeaabae92f1d",
+    "patch_revision": 2,
+    "component_version": "0.1.57.2",
+    "repository": "tuhochi/Strata",
+    "distribution_branch": "patched",
+    "minimum_macos": "15.0",
+    "llama_cpp_commit": "3cf03257f219afbe7334045ff7c6a06ac68c627d",
+    "metal_cpp_url": "https://developer.apple.com/metal/cpp/files/metal-cpp_26.zip",
+    "metal_cpp_sha256": "4df3c078b9aadcb516212e9cb03004cbc5ce9a3e9c068fa3144d021db585a3a4",
+    "upstream_patches": [
+      {
+        "pr": 3800,
+        "commit": "fc2c1ebb7fcc33465d7e2443165112339344b56d",
+        "author": "ncphri"
+      },
+      {
+        "pr": 4222,
+        "commit": "ed7f0d1eadbb79912af6aea82afad4e5ee8b443c",
+        "author": "ncphri"
+      }
+    ],
+    "source_commit": "9c048120e5863367285f0eb876c3cf1b2bd9586b",
+    "builder": {
+      "platform": "macOS-26.6.2-arm64-arm-64bit",
+      "architecture": "arm64",
+      "sdk": "26.5",
+      "compiler": "Apple clang version 21.0.0 (clang-2100.1.1.101)"
+    }
+  },
+  "component_version": "0.1.57.2",
+  "feed_sequence": 2,
+  "engine": {
+    "version": "0.1.57.2",
+    "platform": "macos-arm64",
+    "backend": "metal",
+    "variant": "",
+    "archs": [
+      "apple-gpu"
+    ],
+    "min_driver": {},
+    "min_runtime": null,
+    "build_id": "9c048120e5863367285f0eb876c3cf1b2bd9586b",
+    "format": "tar.gz",
+    "url": "https://raw.githubusercontent.com/tuhochi/Strata/v0.2.11-p2/releases/v0.2.11-p2/engine/strata-engine-engine.tar.gz",
+    "size": 5369991,
+    "sha256": "2b668fe74c7c7398cfca49ca51fe181d96696d7d2f513378ff37323c33669e74",
+    "manifest_sha256": "c78377672ae061e565a5f6079f040af3083da4e43c4fbd1b2e228ad42a6b8e05",
+    "installed_bytes": 14883529,
+    "notes": ""
+  },
+  "control": {
+    "platform": "macos-arm64",
+    "format": "tar.gz",
+    "url": "https://raw.githubusercontent.com/tuhochi/Strata/v0.2.11-p2/releases/v0.2.11-p2/control/strata-control-0.1.57.2-macos-arm64.tar.gz",
+    "size": 54152754,
+    "sha256": "60494bb33a9ad8044ea10de5892113f4243bad3e1426e9cd94e07bbb9b685d16",
+    "installed_bytes": 157929026,
+    "entry": "strata.py",
+    "version": "0.1.57.2"
+  },
+  "scope": "Apple Silicon macOS 15+, Qwen XML tool calls; no CUDA/HIP/SYCL runtime claim"
+}

@@ -1,1 +1,1 @@
-macos-arm64 0.1.57.1 https://raw.githubusercontent.com/tuhochi/Strata/v0.2.11-p1/releases/v0.2.11-p1/control/strata-control-0.1.57.1-macos-arm64.tar.gz 9c07ae7dbf84e36f10256926d1e4961da906da6b96e03897ec7879292a610f47 54151982
+macos-arm64 0.1.57.2 https://raw.githubusercontent.com/tuhochi/Strata/v0.2.11-p2/releases/v0.2.11-p2/control/strata-control-0.1.57.2-macos-arm64.tar.gz 60494bb33a9ad8044ea10de5892113f4243bad3e1426e9cd94e07bbb9b685d16 54152754

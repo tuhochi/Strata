@@ -5,14 +5,14 @@
    {
     "entry": "strata.py",
     "format": "tar.gz",
-    "installed_bytes": 157925371,
+    "installed_bytes": 157929026,
     "platform": "macos-arm64",
-    "sha256": "9c07ae7dbf84e36f10256926d1e4961da906da6b96e03897ec7879292a610f47",
-    "size": 54151982,
-    "url": "https://raw.githubusercontent.com/tuhochi/Strata/v0.2.11-p1/releases/v0.2.11-p1/control/strata-control-0.1.57.1-macos-arm64.tar.gz"
+    "sha256": "60494bb33a9ad8044ea10de5892113f4243bad3e1426e9cd94e07bbb9b685d16",
+    "size": 54152754,
+    "url": "https://raw.githubusercontent.com/tuhochi/Strata/v0.2.11-p2/releases/v0.2.11-p2/control/strata-control-0.1.57.2-macos-arm64.tar.gz"
    }
   ],
-  "version": "0.1.57.1"
+  "version": "0.1.57.2"
  },
  "engine": {
   "packages": [
@@ -21,25 +21,25 @@
      "apple-gpu"
     ],
     "backend": "metal",
-    "build_id": "47369b49ce38ccc330358a97ef3ff5ae1a2158f9",
+    "build_id": "9c048120e5863367285f0eb876c3cf1b2bd9586b",
     "format": "tar.gz",
     "installed_bytes": 14883529,
-    "manifest_sha256": "0b16de947f3dbac614999ecf8f71efa148d224d737318ca2a0681f3eb6828863",
+    "manifest_sha256": "c78377672ae061e565a5f6079f040af3083da4e43c4fbd1b2e228ad42a6b8e05",
     "min_driver": {},
     "min_runtime": null,
     "notes": "",
     "platform": "macos-arm64",
-    "sha256": "656e9f71ddffa3670ff11ece77bcbed9dbfb8c60ce4480b40b08918072ac241f",
-    "size": 5369972,
-    "url": "https://raw.githubusercontent.com/tuhochi/Strata/v0.2.11-p1/releases/v0.2.11-p1/engine/strata-engine-engine.tar.gz",
+    "sha256": "2b668fe74c7c7398cfca49ca51fe181d96696d7d2f513378ff37323c33669e74",
+    "size": 5369991,
+    "url": "https://raw.githubusercontent.com/tuhochi/Strata/v0.2.11-p2/releases/v0.2.11-p2/engine/strata-engine-engine.tar.gz",
     "variant": "",
-    "version": "0.1.57.1"
+    "version": "0.1.57.2"
    }
   ]
  },
  "expires_at": null,
  "feed": "strata-updates",
- "generated_at": "2026-11-06T08:07:23Z",
+ "generated_at": "2026-11-06T09:50:17Z",
  "schema_version": 1,
- "sequence": 1
+ "sequence": 2
 }
