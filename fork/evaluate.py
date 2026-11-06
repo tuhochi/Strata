@@ -24,6 +24,26 @@ def digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
 
 
+def public_status(raw):
+    """Allow only benchmark fields, including inside server-owned nested objects."""
+    def pick(value, names):
+        return {k: value[k] for k in names if k in value} if isinstance(value, dict) else {}
+    out = pick(raw, ['service', 'model', 'loaded', 'engine'])
+    for key, names in {
+        'structured_output': ['formats', 'method', 'constrained_decoding', 'tools_with_json', 'stream_buffered'],
+        'context': ['native', 'max_positions'],
+        'concurrency': ['serving', 'requested'],
+        'activity': ['requests', 'in_flight', 'last_request_at'],
+    }.items():
+        out[key] = pick(raw.get(key), names)
+    machine = raw.get('machine') or {}
+    out['machine'] = {
+        'gpu': pick(machine.get('gpu'), ['name', 'used_mib', 'total_mib', 'util_pct', 'temp_c', 'power_w']),
+        'ram': pick(machine.get('ram'), ['used_gib', 'total_gib']),
+    }
+    return out
+
+
 class Transport:
     def __init__(self, args):
         self.url, self.timeout = args.url.rstrip('/'), args.timeout
@@ -82,8 +102,7 @@ class Transport:
                 raise RuntimeError('Status HTTP ' + str(code))
             raw = json.load(response)
         # Do not save endpoint addresses, paths, credentials or unrelated request history.
-        return {k: raw.get(k) for k in ['service', 'model', 'loaded', 'engine', 'structured_output',
-                                       'context', 'concurrency', 'machine', 'activity']}
+        return public_status(raw)
 
 
 def assemble(events):

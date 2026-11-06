@@ -223,3 +223,15 @@ After starting, the owner reports that the service is ready; the client first
 checks `/v1/status` for the expected engine and loaded model, then runs the frozen
 suite. The original service can be restored with its saved start command. The
 client agent does not SSH into the owner-managed Mac or restart either service.
+
+## Public evidence privacy
+
+Public benchmark evidence contains synthetic prompts and general hardware/model
+characteristics, not device serial numbers, hardware UUIDs, personal user paths,
+private service addresses, auth headers or credentials. The recorded evidence
+history was checked for these identifiers. New status exports use an explicit
+allowlist even for nested machine/configuration fields; a regression test injects
+private fields and verifies they are excluded. Chip model and RAM capacity remain
+for reproducibility. API request IDs are synthetic request identifiers, not Mac
+device identifiers. Do not attach unfiltered system reports, process environments
+or original service configurations to upstream discussions.

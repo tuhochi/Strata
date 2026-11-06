@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
-from fork.evaluate import assemble, compare, grade, summarize
+from fork.evaluate import assemble, compare, grade, summarize, public_status
 
 TOOL = {'type': 'function', 'function': {'name': 'sql_query', 'parameters': {
     'type': 'object', 'properties': {'query': {'type': 'string'}},
@@ -18,6 +18,23 @@ class Evidence(unittest.TestCase):
     def result(self, calls=None, content='', rejected=None):
         return {'content': content, 'reasoning': '', 'calls': calls or [], 'rejected': rejected or [],
                 'usage': {}, 'timings': {}, 'finish_reason': 'stop', 'errors': []}
+
+    def test_public_metadata_excludes_nested_identifiers_and_private_fields(self):
+        raw = {'engine': 'test-engine', 'model': 'test-model', 'serial_number': 'PRIVATE-SERIAL',
+               'hostname': 'PRIVATE-HOST', 'model_path': '/Users/private/model',
+               'machine': {'serial': 'PRIVATE-SERIAL', 'hardware_uuid': 'PRIVATE-UUID',
+                           'gpu': {'name': 'Apple M1 Ultra', 'uuid': 'PRIVATE-UUID', 'serial': 'PRIVATE-SERIAL'},
+                           'ram': {'total_gib': 128, 'owner': 'PRIVATE-OWNER'}},
+               'context': {'native': 262144, 'hostname': 'PRIVATE-HOST'},
+               'activity': {'requests': 10, 'client_ip': 'PRIVATE-IP'},
+               'structured_output': {'constrained_decoding': True, 'api_key': 'PRIVATE-KEY'}}
+        public = public_status(raw)
+        self.assertNotIn('PRIVATE-', json.dumps(public))
+        self.assertNotIn('/Users/', json.dumps(public))
+        self.assertEqual(public['machine']['gpu'], {'name': 'Apple M1 Ultra'})
+        self.assertEqual(public['machine']['ram'], {'total_gib': 128})
+        self.assertEqual(public['activity'], {'requests': 10})
+        self.assertEqual(public['context'], {'native': 262144})
 
     def test_fragmented_sse_tool_is_reassembled_before_grading(self):
         events = [ {'choices': [{'delta': {'tool_calls': [{'index': 0, 'function': {'name': 'sql_', 'arguments': '{"query":'}}]}}]},
