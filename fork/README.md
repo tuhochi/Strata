@@ -94,3 +94,9 @@ request should contain only relevant source changes and tests, without this
 fork's distribution tooling or binary archives.
 
 Independent Mac baseline, frozen stress/control suite, performance protocol and manual switch instructions: [evaluation/README.md](evaluation/README.md). The evidence credits the original contributor and keeps original-PR verification separate from fork verification.
+
+The separate [JSON comparison](evaluation/json/COMPARISON-20261106.md) found
+partial improvement, with a remaining array length/uniqueness violation and
+mask-width errors for automatic tools plus a JSON schema and for final JSON after
+a tool result. The successful tool-name tests do not establish full JSON Schema
+or JSON-with-tools correctness.

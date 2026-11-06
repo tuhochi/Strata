@@ -3,7 +3,9 @@
 This is an independent measurement relevant to ncphri's original
 [JSON constraint PR #3800](https://github.com/Niko1221/Strata/pull/3800) and
 [tool-call PR #4222](https://github.com/Niko1221/Strata/pull/4222).
-No patched JSON result is claimed yet. No upstream PR, issue or comment has
+The completed fork comparison is in [COMPARISON-20261106.md](COMPARISON-20261106.md):
+9/10 format stress cases pass, one array case and two JSON-with-tools cases
+remain unresolved. The observations below describe the original baseline. No upstream PR, issue or comment has
 been published. A future test of the published fork must remain separate from a
 direct verification of the original contributor's PR alone.
 

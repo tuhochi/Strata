@@ -238,6 +238,6 @@ or original service configurations to upstream discussions.
 
 JSON has a separate, precommitted baseline and workload:
 [json/README.md](json/README.md). The owner restored the unpatched service and the
-10/10 tool failure was reproduced before that JSON run. JSON comparison against
-the enabled fork is still pending; the earlier passing name-mask result is not
-presented as JSON validation evidence.
+10/10 tool failure was reproduced before that JSON run. The separate [completed JSON comparison](json/COMPARISON-20261106.md) shows
+partial improvement and remaining failures; the earlier passing name-mask result
+is not presented as proof of full JSON correctness.
