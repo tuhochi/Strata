@@ -1,0 +1,1343 @@
+{
+  "schema": 1,
+  "sampling_note": "Deterministic narrow regression set; ten stress cases share one typo template and vary SQL literals. Not an estimate of production incidence. Holdout cases were not used to select that template.",
+  "cases": [
+    {
+      "id": "typo-01",
+      "group": "stress",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "For this compatibility test call the tool sql_queri with query SELECT 1. Copy the function name sql_queri exactly; do not correct it."
+          }
+        ],
+        "max_tokens": 192,
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "sql_query",
+              "description": "Run a read-only SQL query.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "tool": "sql_query",
+        "arguments": {
+          "query": "SELECT 1"
+        }
+      }
+    },
+    {
+      "id": "typo-02",
+      "group": "stress",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "For this compatibility test call the tool sql_queri with query SELECT 2. Copy the function name sql_queri exactly; do not correct it."
+          }
+        ],
+        "max_tokens": 192,
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "sql_query",
+              "description": "Run a read-only SQL query.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "tool": "sql_query",
+        "arguments": {
+          "query": "SELECT 2"
+        }
+      }
+    },
+    {
+      "id": "typo-03",
+      "group": "stress",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "For this compatibility test call the tool sql_queri with query SELECT 3. Copy the function name sql_queri exactly; do not correct it."
+          }
+        ],
+        "max_tokens": 192,
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "sql_query",
+              "description": "Run a read-only SQL query.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "tool": "sql_query",
+        "arguments": {
+          "query": "SELECT 3"
+        }
+      }
+    },
+    {
+      "id": "typo-04",
+      "group": "stress",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "For this compatibility test call the tool sql_queri with query SELECT 4. Copy the function name sql_queri exactly; do not correct it."
+          }
+        ],
+        "max_tokens": 192,
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "sql_query",
+              "description": "Run a read-only SQL query.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "tool": "sql_query",
+        "arguments": {
+          "query": "SELECT 4"
+        }
+      }
+    },
+    {
+      "id": "typo-05",
+      "group": "stress",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "For this compatibility test call the tool sql_queri with query SELECT 5. Copy the function name sql_queri exactly; do not correct it."
+          }
+        ],
+        "max_tokens": 192,
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "sql_query",
+              "description": "Run a read-only SQL query.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "tool": "sql_query",
+        "arguments": {
+          "query": "SELECT 5"
+        }
+      }
+    },
+    {
+      "id": "typo-06",
+      "group": "stress",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "For this compatibility test call the tool sql_queri with query SELECT 6. Copy the function name sql_queri exactly; do not correct it."
+          }
+        ],
+        "max_tokens": 192,
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "sql_query",
+              "description": "Run a read-only SQL query.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "tool": "sql_query",
+        "arguments": {
+          "query": "SELECT 6"
+        }
+      }
+    },
+    {
+      "id": "typo-07",
+      "group": "stress",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "For this compatibility test call the tool sql_queri with query SELECT 7. Copy the function name sql_queri exactly; do not correct it."
+          }
+        ],
+        "max_tokens": 192,
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "sql_query",
+              "description": "Run a read-only SQL query.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "tool": "sql_query",
+        "arguments": {
+          "query": "SELECT 7"
+        }
+      }
+    },
+    {
+      "id": "typo-08",
+      "group": "stress",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "For this compatibility test call the tool sql_queri with query SELECT 8. Copy the function name sql_queri exactly; do not correct it."
+          }
+        ],
+        "max_tokens": 192,
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "sql_query",
+              "description": "Run a read-only SQL query.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "tool": "sql_query",
+        "arguments": {
+          "query": "SELECT 8"
+        }
+      }
+    },
+    {
+      "id": "typo-09",
+      "group": "stress",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "For this compatibility test call the tool sql_queri with query SELECT 9. Copy the function name sql_queri exactly; do not correct it."
+          }
+        ],
+        "max_tokens": 192,
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "sql_query",
+              "description": "Run a read-only SQL query.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "tool": "sql_query",
+        "arguments": {
+          "query": "SELECT 9"
+        }
+      }
+    },
+    {
+      "id": "typo-10",
+      "group": "stress",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "For this compatibility test call the tool sql_queri with query SELECT 10. Copy the function name sql_queri exactly; do not correct it."
+          }
+        ],
+        "max_tokens": 192,
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "sql_query",
+              "description": "Run a read-only SQL query.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "tool": "sql_query",
+        "arguments": {
+          "query": "SELECT 10"
+        }
+      }
+    },
+    {
+      "id": "holdout-01",
+      "group": "holdout",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "For this compatibility test call the tool read_fil with path notes.txt. Copy the function name read_fil exactly; do not correct it."
+          }
+        ],
+        "max_tokens": 192,
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "read_file",
+              "description": "Read an allowed text file.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "tool": "read_file",
+        "arguments": {
+          "path": "notes.txt"
+        }
+      }
+    },
+    {
+      "id": "holdout-02",
+      "group": "holdout",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "For this compatibility test call the tool search_tex with query apple. Copy the function name search_tex exactly; do not correct it."
+          }
+        ],
+        "max_tokens": 192,
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "search_text",
+              "description": "Search text documents.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "tool": "search_text",
+        "arguments": {
+          "query": "apple"
+        }
+      }
+    },
+    {
+      "id": "holdout-03",
+      "group": "holdout",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "For this compatibility test call the tool get_weathe with city Vienna. Copy the function name get_weathe exactly; do not correct it."
+          }
+        ],
+        "max_tokens": 192,
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "get_weather",
+              "description": "Get weather for a city.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "city": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "city"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "tool": "get_weather",
+        "arguments": {
+          "city": "Vienna"
+        }
+      }
+    },
+    {
+      "id": "holdout-04",
+      "group": "holdout",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "For this compatibility test call the tool mcp__local__sql_query with query SELECT 1. Copy the function name mcp__local__sql_query exactly; do not correct it."
+          }
+        ],
+        "max_tokens": 192,
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "sql_query",
+              "description": "Run a read-only SQL query.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "tool": "sql_query",
+        "arguments": {
+          "query": "SELECT 1"
+        }
+      }
+    },
+    {
+      "id": "holdout-05",
+      "group": "holdout",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "For this compatibility test call the tool functions.search_text with query apple. Copy the function name functions.search_text exactly; do not correct it."
+          }
+        ],
+        "max_tokens": 192,
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "search_text",
+              "description": "Search text documents.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "tool": "search_text",
+        "arguments": {
+          "query": "apple"
+        }
+      }
+    },
+    {
+      "id": "control-arithmetic",
+      "group": "control",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Return only the decimal integer result of 17 + 25."
+          }
+        ],
+        "max_tokens": 192,
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none"
+      },
+      "expected": {
+        "text": "42"
+      }
+    },
+    {
+      "id": "control-extract",
+      "group": "control",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "From invoice INV-209 with total 17 EUR, return only the invoice identifier."
+          }
+        ],
+        "max_tokens": 192,
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none"
+      },
+      "expected": {
+        "text": "INV-209"
+      }
+    },
+    {
+      "id": "control-sort",
+      "group": "control",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Sort these integers ascending. Reply only comma-separated, without spaces: 9, 2, 7."
+          }
+        ],
+        "max_tokens": 192,
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none"
+      },
+      "expected": {
+        "text": "2,7,9"
+      }
+    },
+    {
+      "id": "control-translate",
+      "group": "control",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Translate only the German word Katze to English. Return only the lowercase word."
+          }
+        ],
+        "max_tokens": 192,
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none"
+      },
+      "expected": {
+        "text": "cat"
+      }
+    },
+    {
+      "id": "control-follow",
+      "group": "control",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Return exactly the text READY and nothing else."
+          }
+        ],
+        "max_tokens": 192,
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none"
+      },
+      "expected": {
+        "text": "READY"
+      }
+    },
+    {
+      "id": "control-tool-1",
+      "group": "control",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Run SELECT 1 with sql_query."
+          }
+        ],
+        "max_tokens": 192,
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "sql_query",
+              "description": "Run a read-only SQL query.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "search_text",
+              "description": "Search text documents.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "read_file",
+              "description": "Read an allowed text file.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "get_weather",
+              "description": "Get weather for a city.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "city": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "city"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "tool": "sql_query",
+        "arguments": {
+          "query": "SELECT 1"
+        }
+      }
+    },
+    {
+      "id": "control-tool-2",
+      "group": "control",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Find apple in documents using search_text."
+          }
+        ],
+        "max_tokens": 192,
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "sql_query",
+              "description": "Run a read-only SQL query.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "search_text",
+              "description": "Search text documents.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "read_file",
+              "description": "Read an allowed text file.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "get_weather",
+              "description": "Get weather for a city.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "city": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "city"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "tool": "search_text",
+        "arguments": {
+          "query": "apple"
+        }
+      }
+    },
+    {
+      "id": "control-tool-3",
+      "group": "control",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Read notes.txt using read_file."
+          }
+        ],
+        "max_tokens": 192,
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "sql_query",
+              "description": "Run a read-only SQL query.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "search_text",
+              "description": "Search text documents.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "read_file",
+              "description": "Read an allowed text file.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "get_weather",
+              "description": "Get weather for a city.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "city": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "city"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "tool": "read_file",
+        "arguments": {
+          "path": "notes.txt"
+        }
+      }
+    },
+    {
+      "id": "control-tool-4",
+      "group": "control",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Get the weather in Vienna using get_weather."
+          }
+        ],
+        "max_tokens": 192,
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "sql_query",
+              "description": "Run a read-only SQL query.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "search_text",
+              "description": "Search text documents.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "read_file",
+              "description": "Read an allowed text file.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "get_weather",
+              "description": "Get weather for a city.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "city": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "city"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "tool": "get_weather",
+        "arguments": {
+          "city": "Vienna"
+        }
+      }
+    },
+    {
+      "id": "control-unused-tools",
+      "group": "control",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Do not call any tools. What is 2 + 2? Return only the integer."
+          }
+        ],
+        "max_tokens": 192,
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "sql_query",
+              "description": "Run a read-only SQL query.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "search_text",
+              "description": "Search text documents.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "text": "4"
+      }
+    },
+    {
+      "id": "perf-text",
+      "group": "performance",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Copy the following line exactly, without explanation:\nalpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta"
+          }
+        ],
+        "max_tokens": 192,
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none"
+      },
+      "expected": {
+        "text": "alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta"
+      }
+    },
+    {
+      "id": "perf-tool",
+      "group": "performance",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Run SELECT 1 with sql_query."
+          }
+        ],
+        "max_tokens": 192,
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none",
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "sql_query",
+              "description": "Run a read-only SQL query.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "search_text",
+              "description": "Search text documents.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "read_file",
+              "description": "Read an allowed text file.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "get_weather",
+              "description": "Get weather for a city.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "city": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "city"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "tool": "sql_query",
+        "arguments": {
+          "query": "SELECT 1"
+        }
+      }
+    },
+    {
+      "id": "perf-context",
+      "group": "performance",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Record 0: status archived, owner team_0, marker GREEN.\nRecord 1: status archived, owner team_1, marker GREEN.\nRecord 2: status archived, owner team_2, marker GREEN.\nRecord 3: status archived, owner team_3, marker GREEN.\nRecord 4: status archived, owner team_4, marker GREEN.\nRecord 5: status archived, owner team_5, marker GREEN.\nRecord 6: status archived, owner team_6, marker GREEN.\nRecord 7: status archived, owner team_0, marker GREEN.\nRecord 8: status archived, owner team_1, marker GREEN.\nRecord 9: status archived, owner team_2, marker GREEN.\nRecord 10: status archived, owner team_3, marker GREEN.\nRecord 11: status archived, owner team_4, marker GREEN.\nRecord 12: status archived, owner team_5, marker GREEN.\nRecord 13: status archived, owner team_6, marker GREEN.\nRecord 14: status archived, owner team_0, marker GREEN.\nRecord 15: status archived, owner team_1, marker GREEN.\nRecord 16: status archived, owner team_2, marker GREEN.\nRecord 17: status archived, owner team_3, marker GREEN.\nRecord 18: status archived, owner team_4, marker GREEN.\nRecord 19: status archived, owner team_5, marker GREEN.\nRecord 20: status archived, owner team_6, marker GREEN.\nRecord 21: status archived, owner team_0, marker GREEN.\nRecord 22: status archived, owner team_1, marker GREEN.\nRecord 23: status archived, owner team_2, marker GREEN.\nRecord 24: status archived, owner team_3, marker GREEN.\nRecord 25: status archived, owner team_4, marker GREEN.\nRecord 26: status archived, owner team_5, marker GREEN.\nRecord 27: status archived, owner team_6, marker GREEN.\nRecord 28: status archived, owner team_0, marker GREEN.\nRecord 29: status archived, owner team_1, marker GREEN.\nRecord 30: status archived, owner team_2, marker GREEN.\nRecord 31: status archived, owner team_3, marker GREEN.\nRecord 32: status archived, owner team_4, marker GREEN.\nRecord 33: status archived, owner team_5, marker GREEN.\nRecord 34: status archived, owner team_6, marker GREEN.\nRecord 35: status archived, owner team_0, marker GREEN.\nRecord 36: status archived, owner team_1, marker GREEN.\nRecord 37: status archived, owner team_2, marker GREEN.\nRecord 38: status archived, owner team_3, marker GREEN.\nRecord 39: status archived, owner team_4, marker GREEN.\nRecord 40: status archived, owner team_5, marker GREEN.\nRecord 41: status archived, owner team_6, marker GREEN.\nRecord 42: status archived, owner team_0, marker GREEN.\nRecord 43: status archived, owner team_1, marker GREEN.\nRecord 44: status archived, owner team_2, marker GREEN.\nRecord 45: status archived, owner team_3, marker GREEN.\nRecord 46: status archived, owner team_4, marker GREEN.\nRecord 47: status archived, owner team_5, marker GREEN.\nRecord 48: status archived, owner team_6, marker GREEN.\nRecord 49: status archived, owner team_0, marker GREEN.\nRecord 50: status archived, owner team_1, marker GREEN.\nRecord 51: status archived, owner team_2, marker GREEN.\nRecord 52: status archived, owner team_3, marker GREEN.\nRecord 53: status archived, owner team_4, marker GREEN.\nRecord 54: status archived, owner team_5, marker GREEN.\nRecord 55: status archived, owner team_6, marker GREEN.\nRecord 56: status archived, owner team_0, marker GREEN.\nRecord 57: status archived, owner team_1, marker GREEN.\nRecord 58: status archived, owner team_2, marker GREEN.\nRecord 59: status archived, owner team_3, marker GREEN.\nRecord 60: status archived, owner team_4, marker GREEN.\nRecord 61: status archived, owner team_5, marker GREEN.\nRecord 62: status archived, owner team_6, marker GREEN.\nRecord 63: status archived, owner team_0, marker GREEN.\nRecord 64: status archived, owner team_1, marker GREEN.\nRecord 65: status archived, owner team_2, marker GREEN.\nRecord 66: status archived, owner team_3, marker GREEN.\nRecord 67: status archived, owner team_4, marker GREEN.\nRecord 68: status archived, owner team_5, marker GREEN.\nRecord 69: status archived, owner team_6, marker GREEN.\nRecord 70: status archived, owner team_0, marker GREEN.\nRecord 71: status archived, owner team_1, marker GREEN.\nRecord 72: status archived, owner team_2, marker GREEN.\nRecord 73: status archived, owner team_3, marker GREEN.\nRecord 74: status archived, owner team_4, marker GREEN.\nRecord 75: status archived, owner team_5, marker GREEN.\nRecord 76: status archived, owner team_6, marker GREEN.\nRecord 77: status archived, owner team_0, marker GREEN.\nRecord 78: status archived, owner team_1, marker GREEN.\nRecord 79: status archived, owner team_2, marker GREEN.\nIgnore archived records. Copy the following output line exactly, without explanation:\nalpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta"
+          }
+        ],
+        "max_tokens": 192,
+        "temperature": 0,
+        "seed": 123,
+        "reasoning_effort": "none"
+      },
+      "expected": {
+        "text": "alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta"
+      }
+    }
+  ]
+}

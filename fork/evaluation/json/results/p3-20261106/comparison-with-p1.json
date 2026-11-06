@@ -1,0 +1,405 @@
+{
+  "baseline_engine": "0.1.57.1-metal",
+  "candidate_engine": "0.1.57.3-metal",
+  "reported_configuration_equal": {
+    "context": true,
+    "concurrency": true
+  },
+  "baseline": {
+    "control": {
+      "requests": 6,
+      "passed": 6,
+      "categories": {
+        "json_success": 5,
+        "text_success": 1
+      }
+    },
+    "integration": {
+      "requests": 3,
+      "passed": 1,
+      "categories": {
+        "api_error": 2,
+        "tool_call_success": 1
+      }
+    },
+    "negative": {
+      "requests": 3,
+      "passed": 3,
+      "categories": {
+        "expected_request_rejection": 3
+      }
+    },
+    "performance": {
+      "requests": 30,
+      "passed": 30,
+      "categories": {
+        "json_success": 30
+      }
+    },
+    "stress": {
+      "requests": 10,
+      "passed": 9,
+      "categories": {
+        "json_success": 9,
+        "schema_violation": 1
+      }
+    }
+  },
+  "candidate": {
+    "control": {
+      "requests": 6,
+      "passed": 6,
+      "categories": {
+        "json_success": 5,
+        "text_success": 1
+      }
+    },
+    "integration": {
+      "requests": 3,
+      "passed": 3,
+      "categories": {
+        "tool_call_success": 2,
+        "json_success": 1
+      }
+    },
+    "negative": {
+      "requests": 3,
+      "passed": 3,
+      "categories": {
+        "expected_request_rejection": 3
+      }
+    },
+    "performance": {
+      "requests": 30,
+      "passed": 30,
+      "categories": {
+        "json_success": 30
+      }
+    },
+    "stress": {
+      "requests": 10,
+      "passed": 9,
+      "categories": {
+        "json_success": 9,
+        "schema_violation": 1
+      }
+    }
+  },
+  "changes": [
+    {
+      "case": "integration-tool-auto",
+      "repeat": 0,
+      "baseline_category": "api_error",
+      "candidate_category": "tool_call_success"
+    },
+    {
+      "case": "integration-tool-required",
+      "repeat": 0,
+      "baseline_category": "tool_call_success",
+      "candidate_category": "tool_call_success"
+    },
+    {
+      "case": "integration-final-after-tool",
+      "repeat": 0,
+      "baseline_category": "api_error",
+      "candidate_category": "json_success"
+    }
+  ],
+  "performance": {
+    "perf-object": {
+      "baseline": {
+        "requests": 10,
+        "successful": 10,
+        "seconds": {
+          "n": 10,
+          "median": 1.9382947975536808,
+          "p95": 2.0042104019084945,
+          "min": 1.9100063738878816,
+          "max": 2.0042104019084945
+        },
+        "decode_tokens_per_second": {
+          "n": 10,
+          "median": 59.8,
+          "p95": 60.2,
+          "min": 59.0,
+          "max": 60.2
+        },
+        "completion_tokens": {
+          "n": 10,
+          "median": 105.0,
+          "p95": 105,
+          "min": 105,
+          "max": 105
+        },
+        "prompt_tokens": {
+          "n": 10,
+          "median": 133.0,
+          "p95": 133,
+          "min": 133,
+          "max": 133
+        },
+        "cached_tokens": {
+          "n": 10,
+          "median": 126.0,
+          "p95": 126,
+          "min": 126,
+          "max": 126
+        },
+        "draft_acceptance": {
+          "n": 10,
+          "median": 1.0,
+          "p95": 1.0,
+          "min": 0.9354838709677419,
+          "max": 1.0
+        }
+      },
+      "candidate": {
+        "requests": 10,
+        "successful": 10,
+        "seconds": {
+          "n": 10,
+          "median": 1.9473453260143287,
+          "p95": 1.9730378580279648,
+          "min": 1.92666769400239,
+          "max": 1.9730378580279648
+        },
+        "decode_tokens_per_second": {
+          "n": 10,
+          "median": 59.0,
+          "p95": 59.8,
+          "min": 58.5,
+          "max": 59.8
+        },
+        "completion_tokens": {
+          "n": 10,
+          "median": 105.0,
+          "p95": 105,
+          "min": 105,
+          "max": 105
+        },
+        "prompt_tokens": {
+          "n": 10,
+          "median": 133.0,
+          "p95": 133,
+          "min": 133,
+          "max": 133
+        },
+        "cached_tokens": {
+          "n": 10,
+          "median": 126.0,
+          "p95": 126,
+          "min": 126,
+          "max": 126
+        },
+        "draft_acceptance": {
+          "n": 10,
+          "median": 0.9629629629629629,
+          "p95": 1.0,
+          "min": 0.9454545454545454,
+          "max": 1.0
+        }
+      },
+      "median_change_percent": {
+        "seconds": 0.4669325054202478,
+        "decode_tokens_per_second": -1.3377926421404673
+      }
+    },
+    "perf-schema": {
+      "baseline": {
+        "requests": 10,
+        "successful": 10,
+        "seconds": {
+          "n": 10,
+          "median": 1.9835437620058656,
+          "p95": 2.039953628904186,
+          "min": 1.9181821149541065,
+          "max": 2.039953628904186
+        },
+        "decode_tokens_per_second": {
+          "n": 10,
+          "median": 59.35,
+          "p95": 59.8,
+          "min": 58.5,
+          "max": 59.8
+        },
+        "completion_tokens": {
+          "n": 10,
+          "median": 105.0,
+          "p95": 105,
+          "min": 105,
+          "max": 105
+        },
+        "prompt_tokens": {
+          "n": 10,
+          "median": 193.0,
+          "p95": 193,
+          "min": 193,
+          "max": 193
+        },
+        "cached_tokens": {
+          "n": 10,
+          "median": 186.0,
+          "p95": 186,
+          "min": 186,
+          "max": 186
+        },
+        "draft_acceptance": {
+          "n": 10,
+          "median": 0.9814814814814814,
+          "p95": 1.0,
+          "min": 0.9298245614035088,
+          "max": 1.0
+        }
+      },
+      "candidate": {
+        "requests": 10,
+        "successful": 10,
+        "seconds": {
+          "n": 10,
+          "median": 1.9589992834953591,
+          "p95": 1.9752205399563536,
+          "min": 1.9283213630551472,
+          "max": 1.9752205399563536
+        },
+        "decode_tokens_per_second": {
+          "n": 10,
+          "median": 59.0,
+          "p95": 59.8,
+          "min": 58.6,
+          "max": 59.8
+        },
+        "completion_tokens": {
+          "n": 10,
+          "median": 105.0,
+          "p95": 105,
+          "min": 105,
+          "max": 105
+        },
+        "prompt_tokens": {
+          "n": 10,
+          "median": 193.0,
+          "p95": 193,
+          "min": 193,
+          "max": 193
+        },
+        "cached_tokens": {
+          "n": 10,
+          "median": 186.0,
+          "p95": 186,
+          "min": 186,
+          "max": 186
+        },
+        "draft_acceptance": {
+          "n": 10,
+          "median": 0.9629629629629629,
+          "p95": 1.0,
+          "min": 0.9454545454545454,
+          "max": 1.0
+        }
+      },
+      "median_change_percent": {
+        "seconds": -1.2374054447725324,
+        "decode_tokens_per_second": -0.5897219882055604
+      }
+    },
+    "perf-text": {
+      "baseline": {
+        "requests": 10,
+        "successful": 10,
+        "seconds": {
+          "n": 10,
+          "median": 0.8551016090204939,
+          "p95": 0.9272769599920139,
+          "min": 0.8110390809597448,
+          "max": 0.9272769599920139
+        },
+        "decode_tokens_per_second": {
+          "n": 10,
+          "median": 61.1,
+          "p95": 63.2,
+          "min": 59.1,
+          "max": 63.2
+        },
+        "completion_tokens": {
+          "n": 10,
+          "median": 41.0,
+          "p95": 41,
+          "min": 41,
+          "max": 41
+        },
+        "prompt_tokens": {
+          "n": 10,
+          "median": 62.0,
+          "p95": 62,
+          "min": 62,
+          "max": 62
+        },
+        "cached_tokens": {
+          "n": 10,
+          "median": 55.0,
+          "p95": 55,
+          "min": 55,
+          "max": 55
+        },
+        "draft_acceptance": {
+          "n": 10,
+          "median": 0.8928571428571429,
+          "p95": 0.9,
+          "min": 0.8846153846153846,
+          "max": 0.9
+        }
+      },
+      "candidate": {
+        "requests": 10,
+        "successful": 10,
+        "seconds": {
+          "n": 10,
+          "median": 0.8328369169612415,
+          "p95": 0.8670590310357511,
+          "min": 0.8062348030507565,
+          "max": 0.8670590310357511
+        },
+        "decode_tokens_per_second": {
+          "n": 10,
+          "median": 61.2,
+          "p95": 63.3,
+          "min": 61.1,
+          "max": 63.3
+        },
+        "completion_tokens": {
+          "n": 10,
+          "median": 41.0,
+          "p95": 41,
+          "min": 41,
+          "max": 41
+        },
+        "prompt_tokens": {
+          "n": 10,
+          "median": 62.0,
+          "p95": 62,
+          "min": 62,
+          "max": 62
+        },
+        "cached_tokens": {
+          "n": 10,
+          "median": 55.0,
+          "p95": 55,
+          "min": 55,
+          "max": 55
+        },
+        "draft_acceptance": {
+          "n": 10,
+          "median": 0.8928571428571429,
+          "p95": 0.9,
+          "min": 0.8928571428571429,
+          "max": 0.9
+        }
+      },
+      "median_change_percent": {
+        "seconds": -2.603748118864646,
+        "decode_tokens_per_second": 0.16366612111293755
+      }
+    }
+  },
+  "limits": "HTTP errors and invalid successful JSON are distinct. Compare successful requests only for speed; mismatched output/cache/draft/load is not a causal patch benchmark. No /v1/responses API, streaming, cold-cache or other-model claim."
+}

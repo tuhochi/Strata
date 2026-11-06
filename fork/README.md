@@ -112,3 +112,5 @@ a tool result. The successful tool-name tests do not establish full JSON Schema
 or JSON-with-tools correctness.
 
 Patch revision p2 corrects the name/schema mask-width composition, with a failing-then-passing real-llguidance regression test. See the [source audit](evaluation/json/AUDIT-20261106.md). It does not add uniqueItems support; its Mac API comparison must be recorded separately from p1.
+
+The [p3 Mac hardware benchmark](evaluation/P3-HARDWARE-20261106.md) now verifies the frozen name tests and all three JSON-plus-tools cases. One schema array case remains invalid. These results are for this Mac/model; other GPU backends remain unverified.

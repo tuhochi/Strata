@@ -1,0 +1,78 @@
+{
+  "release": "v0.2.11-p3",
+  "published_build_source_commit": "b6687e44ce4a5f8a783c65ff459692a244a8dadc",
+  "observed_engine": "0.1.57.3-metal",
+  "model": "qwen3.8-flash-next-unsloth-ud-q4_k_xl",
+  "hardware": {
+    "chip": "Apple M1 Ultra",
+    "ram_gib": 128
+  },
+  "checked_utc": "2026-11-06T10:47:54.096031+00:00",
+  "scope": "Actual owner-managed API; Chat Completions, reasoning none; frozen SSE tool suite and non-streaming JSON suite; no tool execution",
+  "activation": "Independent strict-name rejection observed; operator-managed no-mask-ENV setup, no remote environment/source/weight introspection",
+  "total_benchmark_requests": 113,
+  "tool_suite": {
+    "requests": 58,
+    "generation_counter_delta": 58,
+    "identity_stable": true,
+    "stress_unknown_names": 0,
+    "stress_requests": 10,
+    "additional_unknown_names": 0,
+    "additional_requests": 5,
+    "all_15_intended_operations_passed": true,
+    "control_unknown_names": 0,
+    "control_requests": 10,
+    "performance_measurements": 30,
+    "control_and_performance_answers_unchanged": true,
+    "performance_median_change_percent": {
+      "perf-context": {
+        "seconds": 0.3943334209961735,
+        "ttft_seconds": -4.224991744282147,
+        "decode_tokens_per_second": -0.6333567909922677
+      },
+      "perf-text": {
+        "seconds": 0.7331355015214536,
+        "ttft_seconds": -2.7029930732603846,
+        "decode_tokens_per_second": -0.8486562942008558
+      },
+      "perf-tool": {
+        "seconds": 0.41942517974900007,
+        "ttft_seconds": 0.7801288800459494,
+        "decode_tokens_per_second": -0.2636203866432263
+      }
+    }
+  },
+  "json_suite": {
+    "requests": 55,
+    "generation_counter_delta": 52,
+    "identity_stable": true,
+    "stress_passed": 9,
+    "stress_requests": 10,
+    "schema_invalid_HTTP_200": 1,
+    "integration_passed": 3,
+    "integration_requests": 3,
+    "mask_width_errors": 0,
+    "ordinary_controls_passed": 6,
+    "negative_controls_passed": 3,
+    "performance_successes": 30,
+    "control_and_performance_answers_unchanged": true,
+    "performance_median_change_percent": {
+      "perf-object": {
+        "seconds": 2.354963025913115,
+        "decode_tokens_per_second": -2.2369511184755497
+      },
+      "perf-schema": {
+        "seconds": 2.5368298542266077,
+        "decode_tokens_per_second": -2.1558872305140864
+      },
+      "perf-text": {
+        "seconds": -0.671243011053213,
+        "decode_tokens_per_second": 0.16366612111293755
+      }
+    }
+  },
+  "remaining_failure": "Array values [1,1] violates minItems=3 and uniqueItems=true; no full JSON Schema guarantee",
+  "full_report": "fork/evaluation/P3-HARDWARE-20261106.md",
+  "stable_channel": "not changed by benchmark-only run",
+  "upstream_submission": "none"
+}

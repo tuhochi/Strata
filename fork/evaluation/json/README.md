@@ -156,3 +156,5 @@ Evidence: [raw requests/responses](results/unpatched-20261106/requests.jsonl),
 private addresses, credentials, device serials and hardware identifiers. General
 chip/RAM characteristics remain for reproducibility. Eight offline scorer tests
 verify classification independently of real-model behavior.
+
+The later [p3 hardware comparison](../P3-HARDWARE-20261106.md) verifies all three JSON-plus-tools cases on the owner-managed Mac; the array case remains unresolved. Earlier p1 measurements above and their raw data remain unchanged.

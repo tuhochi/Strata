@@ -1,0 +1,36 @@
+{
+  "case": "request_driven_guard_activation",
+  "request": {
+    "model": "qwen3.8-flash-next-unsloth-ud-q4_k_xl",
+    "max_tokens": 8,
+    "temperature": 0,
+    "reasoning_effort": "none",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Reply only OK. Do not call any tools."
+      }
+    ],
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "diagnostic.invalid",
+          "description": "Unused synthetic diagnostic tool.",
+          "parameters": {
+            "type": "object",
+            "properties": {}
+          }
+        }
+      }
+    ]
+  },
+  "http_status": 400,
+  "response": {
+    "error": {
+      "type": "invalid_request_error",
+      "message": "strict tool names must be unique ASCII identifiers"
+    }
+  },
+  "scope": "Behavior corroborates active name guard. Absence of server ENV is owner-reported, not remotely introspected."
+}

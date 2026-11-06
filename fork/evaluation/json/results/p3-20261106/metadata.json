@@ -1,0 +1,104 @@
+{
+  "label": "p3-json-request-driven-owner-no-mask-env",
+  "started_utc": "2026-11-06T10:40:45.612838+00:00",
+  "suite_sha256": "61603a5dd7769419927e3249e281aae90a9d8d2c2ce277ddde6cec99568c0b16",
+  "runner_sha256": "1001cea781454a839fd93cff3690f2a2b323dba077e48bcde6a10c5a8652decb",
+  "transport_sha256": "66acb7341a8b60bc9c63617597a0eb5e557bdf327486267db376c8839d717cd1",
+  "jsonschema_version": "4.26.0",
+  "status_before": {
+    "service": "strata",
+    "model": "qwen3.8-flash-next-unsloth-ud-q4_k_xl",
+    "loaded": true,
+    "engine": "0.1.57.3-metal",
+    "structured_output": {
+      "formats": [
+        "json_object",
+        "json_schema"
+      ],
+      "method": "prompt_and_validate",
+      "constrained_decoding": true,
+      "tools_with_json": true,
+      "stream_buffered": true
+    },
+    "context": {
+      "native": 262144,
+      "max_positions": 262144
+    },
+    "concurrency": {
+      "serving": 1,
+      "requested": 1
+    },
+    "activity": {
+      "requests": 59,
+      "in_flight": 0,
+      "last_request_at": 1793961606
+    },
+    "machine": {
+      "gpu": {
+        "name": "Apple M1 Ultra",
+        "used_mib": 1014.0,
+        "total_mib": 114688.0,
+        "util_pct": 0,
+        "temp_c": null,
+        "power_w": null
+      },
+      "ram": {
+        "used_gib": 42.2,
+        "total_gib": 128.0
+      }
+    }
+  },
+  "model": "qwen3.8-flash-next-unsloth-ud-q4_k_xl",
+  "performance_repeats": 10,
+  "scope": "OpenAI Chat Completions response_format, non-streaming; separate from /v1/responses API. No actual tool execution.",
+  "selection": "Cases frozen before any JSON model run. Ten adversarial cases, six normal controls, three tools+JSON integration cases, three invalid-request controls. Performance excludes one warmup per workload.",
+  "configuration_attestation": "Owner installed p3 after instructions to remove all three mask ENV. No SSH or process-environment inspection. Active name guard corroborated before tool suite. No service/configuration changes made by client between tool and JSON runs; remaining launch flags and file hashes not independently attested.",
+  "timing_scope": "Non-streaming HTTP total, includes validation/buffering and network. No TTFT claim. Engine decode timing separately. No retries.",
+  "status_after": {
+    "service": "strata",
+    "model": "qwen3.8-flash-next-unsloth-ud-q4_k_xl",
+    "loaded": true,
+    "engine": "0.1.57.3-metal",
+    "structured_output": {
+      "formats": [
+        "json_object",
+        "json_schema"
+      ],
+      "method": "prompt_and_validate",
+      "constrained_decoding": true,
+      "tools_with_json": true,
+      "stream_buffered": true
+    },
+    "context": {
+      "native": 262144,
+      "max_positions": 262144
+    },
+    "concurrency": {
+      "serving": 1,
+      "requested": 1
+    },
+    "activity": {
+      "requests": 111,
+      "in_flight": 0,
+      "last_request_at": 1793961717
+    },
+    "machine": {
+      "gpu": {
+        "name": "Apple M1 Ultra",
+        "used_mib": 85649.0,
+        "total_mib": 114688.0,
+        "util_pct": 94,
+        "temp_c": null,
+        "power_w": null
+      },
+      "ram": {
+        "used_gib": 107.6,
+        "total_gib": 128.0
+      }
+    }
+  },
+  "finished_utc": "2026-11-06T10:41:57.487017+00:00",
+  "identity_stable": true,
+  "activity_delta": 52,
+  "measured_requests": 55
+}

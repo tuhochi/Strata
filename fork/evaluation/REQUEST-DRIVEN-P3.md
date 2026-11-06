@@ -73,3 +73,5 @@ unmodified p2 checkout before publication; they are not reported as new p3
 regressions or hidden by a green full-suite claim. Signed ARM installation checks
 verify request-driven composition with all mask ENV absent. See the p3 release's
 REGRESSION-VALIDATION.json for counts and exact failing case names.
+
+The owner-managed [p3 Mac hardware comparison](P3-HARDWARE-20261106.md) is now recorded: no unknown names in 15 stress/additional cases and all three JSON-plus-tools cases pass. The known array violation remains. Environment absence is owner-managed rather than remotely introspected.
