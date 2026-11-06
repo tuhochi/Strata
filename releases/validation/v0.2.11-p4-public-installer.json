@@ -1,0 +1,85 @@
+{
+  "release": "v0.2.11-p4",
+  "artifact_commit": "e2b0edcf0d8ec48b1e235a2932a892820e7f984b",
+  "public_installation": {
+    "release": "v0.2.11-p4",
+    "source_commit": "f80bff47ed8ae0bcbb8e72b50c434804b692c62e",
+    "public_installer_url": "https://raw.githubusercontent.com/tuhochi/Strata/v0.2.11-p4/fork/install.sh",
+    "downloaded_from_public_GitHub": true,
+    "fresh_prefix_with_spaces": true,
+    "namespace_guard_without_ENV": true,
+    "unknown_name_separator_blocked": true,
+    "product_and_build_versions_verified": true,
+    "isolated_registry_empty": true,
+    "model_or_service_start": "not performed; installer and CPU library probe only"
+  },
+  "GitHub_release_assets": {
+    "release": "https://github.com/tuhochi/Strata/releases/tag/v0.2.11-p4",
+    "checks": [
+      {
+        "name": "BUILD-REPORT.json",
+        "size_matches": true,
+        "GitHub_digest_matches": true
+      },
+      {
+        "name": "install-fork.sh",
+        "size_matches": true,
+        "GitHub_digest_matches": true
+      },
+      {
+        "name": "install-manifest.txt",
+        "size_matches": true,
+        "GitHub_digest_matches": true
+      },
+      {
+        "name": "install.sh",
+        "size_matches": true,
+        "GitHub_digest_matches": true
+      },
+      {
+        "name": "INSTALLATION-VALIDATION.json",
+        "size_matches": true,
+        "GitHub_digest_matches": true
+      },
+      {
+        "name": "REGRESSION-VALIDATION.json",
+        "size_matches": true,
+        "GitHub_digest_matches": true
+      },
+      {
+        "name": "RELEASE-NOTES.md",
+        "size_matches": true,
+        "GitHub_digest_matches": true
+      },
+      {
+        "name": "SHA256SUMS",
+        "size_matches": true,
+        "GitHub_digest_matches": true
+      },
+      {
+        "name": "strata-control-0.1.57.4-macos-arm64.tar.gz",
+        "size_matches": true,
+        "GitHub_digest_matches": true
+      },
+      {
+        "name": "strata-engine-engine.tar.gz",
+        "size_matches": true,
+        "GitHub_digest_matches": true
+      },
+      {
+        "name": "strata-feed.json",
+        "size_matches": true,
+        "GitHub_digest_matches": true
+      },
+      {
+        "name": "strata-feed.json.sig",
+        "size_matches": true,
+        "GitHub_digest_matches": true
+      }
+    ]
+  },
+  "publishing_workflow": "https://github.com/tuhochi/Strata/actions/runs/42222566921",
+  "publishing_workflow_conclusion": "success",
+  "production_installation": "owner-managed; not performed by this verification",
+  "stable_channel": "not promoted; use the explicit p4 version"
+}
