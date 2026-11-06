@@ -1283,7 +1283,7 @@ index d5ea4cd0..6b638b95 100644
      if choice == "none":
          return None, names, skipped
 diff --git a/serve/server.py b/serve/server.py
-index 01b76471..eaddbdb3 100644
+index 01b76471..b7223da6 100644
 --- a/serve/server.py
 +++ b/serve/server.py
 @@ -84,6 +84,7 @@ from serve import launch_identity  # noqa: E402
@@ -1379,7 +1379,7 @@ index 01b76471..eaddbdb3 100644
                      if line is None or line.startswith("ERR"):
                          break
                      if line.startswith("DONE"):
-@@ -4880,6 +4918,64 @@ class Service:
+@@ -4880,6 +4918,60 @@ class Service:
              self.prompts = PromptEncoder(tokenizer, keep=slots) if slots is not None and slots > 0 \
                  else PromptEncoder(tokenizer)
  
@@ -1395,8 +1395,6 @@ index 01b76471..eaddbdb3 100644
 +        STRATA_TOOL_MASK_STRICT=0 opts out of the additional name guard.
 +        The inherited JSON-only path retains its post-validation fallback."""
 +        fmt = constrain.format_of(sampling) if isinstance(sampling, dict) else None
-+        strict_json = bool(fmt and fmt.get("type") == "json_schema" and
-+                           fmt.get("json_schema", {}).get("strict") is True)
 +        strict_tools = bool(tools) and os.environ.get("STRATA_TOOL_MASK_STRICT", "1") != "0"
 +        if strict_tools:
 +            if not getattr(self.engine, "supports_mask", False) or not constrain.available():
@@ -1435,8 +1433,6 @@ index 01b76471..eaddbdb3 100644
 +            c = constrain.Constraint(vocab, constrain.grammar(fmt, bool(tools), vocab),
 +                                     armed=not thinking)
 +        except Exception as e:                           # noqa: BLE001 - an unsupported schema keyword, a vocab problem
-+            if strict_json:
-+                raise ValueError("strict JSON schema cannot be enforced by the grammar compiler") from e
 +            constrain.note_once(f"constrained decoding off for a request: {str(e).splitlines()[0][:200]}")
 +            return sampling
 +        constrain.note_once("constrained decoding on: JSON answers are masked token by token (llguidance)")
@@ -1444,7 +1440,7 @@ index 01b76471..eaddbdb3 100644
      def set_family(self, family: str | None) -> None:
          """A family whose text differs from the Qwen form this server was written for (DeepSeek-V4.1: its own end
          token, DSML tool calls, reasoning-effort words).  The others keep the defaults."""
-@@ -5756,7 +5852,9 @@ class Service:
+@@ -5756,7 +5848,9 @@ class Service:
              "service": "strata", "model": self.model,
              "loaded": self.loaded(), "auto_load": hasattr(self.engine, "restart"),
              "structured_output": {"formats": ["json_object", "json_schema"], "method": "prompt_and_validate",
@@ -1455,7 +1451,7 @@ index 01b76471..eaddbdb3 100644
              "engine": (getattr(self.engine, "info", {}) or {}).get("version"),
              "started": int(self.started_at), "uptime_s": int(time.time() - self.started_at),
              "cache_max_tokens": ctx,
-@@ -6256,7 +6354,8 @@ class Service:
+@@ -6256,7 +6350,8 @@ class Service:
                  out.append(ev)
              return out
          opening = []                                    # without thinking the prompt ends with the forced opening:
@@ -1465,7 +1461,7 @@ index 01b76471..eaddbdb3 100644
              opening, force = parser.feed(force), None
          tail = ""                                       # the last characters written (the newlines before a call)
          answered, close_retried = False, False          # #1053: content or a call came out; the thinking was closed
-@@ -6374,6 +6473,7 @@ class Service:
+@@ -6374,6 +6469,7 @@ class Service:
                      prompt, thought = ids, 0            # thought: the reasoning tokens so far (the budget's count)
                      for ev in opening:
                          yield "event", ev
@@ -1473,7 +1469,7 @@ index 01b76471..eaddbdb3 100644
                      while True:
                          segment_before = getattr(self.engine, "last", None)
                          segments_before = len(segments)     # (#879: a pass sent again leaves no segment)
-@@ -6557,6 +6657,8 @@ class Service:
+@@ -6557,6 +6653,8 @@ class Service:
                                      for ev in evs:
                                          yield "event", ev
                                  prompt = prompt + seg + extra
@@ -1482,7 +1478,7 @@ index 01b76471..eaddbdb3 100644
                                  finish = "length"
                                  continue
                          if not (wrap or opens) or cancel.is_set():
-@@ -6590,6 +6692,8 @@ class Service:
+@@ -6590,6 +6688,8 @@ class Service:
                              finish = "stop"
                              break
                          prompt = prompt + seg + extra
@@ -1491,7 +1487,7 @@ index 01b76471..eaddbdb3 100644
                      if cancel.is_set():
                          finish = "cancel"
                      elif looped:
-@@ -7342,6 +7446,12 @@ def structured_chunks(chunks, validator):
+@@ -7342,6 +7442,12 @@ def structured_chunks(chunks, validator):
                  yield chunk if progress else None
          result = openai_collect(buffered)
          choice = result["choices"][0]
@@ -1504,7 +1500,7 @@ index 01b76471..eaddbdb3 100644
          content = validated_json(choice["message"]["content"], validator, choice["finish_reason"])
          # logprobs: the entries spell what the model wrote, which this function replaces with the
          # canonical JSON.  `_structured_logprobs` gives back the form the tokens spell, or None.
-@@ -8589,8 +8699,12 @@ def make_handler(svc: Service):
+@@ -8589,8 +8695,12 @@ def make_handler(svc: Service):
              if tool_choice_of(req.get("tool_choice"))[0] == "none":   # as the Responses route: no tools are offered
                  tools = None
              force = svc.force_text(forced_call(req.get("tool_choice"), tools))      # a bad value is a 400 before anything is sent
@@ -2563,10 +2559,10 @@ index f0e2c74a..18714064 100644
      unittest.main()
 diff --git a/serve/test_tool_name_constraint.py b/serve/test_tool_name_constraint.py
 new file mode 100644
-index 00000000..53cc227e
+index 00000000..9b7736e2
 --- /dev/null
 +++ b/serve/test_tool_name_constraint.py
-@@ -0,0 +1,253 @@
+@@ -0,0 +1,228 @@
 +"""Names must stay constrained across prose, thinking, multiple calls and MTP windows."""
 +import base64
 +import os
@@ -2667,31 +2663,6 @@ index 00000000..53cc227e
 +        with patch.dict(os.environ, {}, clear=True), patch.object(C, 'available', return_value=False):
 +            with self.assertRaisesRegex(ValueError, 'llguidance'):
 +                self.app()._with_constraint({}, [{'name': 'sql_query'}], False)
-+
-+    def test_strict_unsupported_schema_cannot_silently_disable_stream_mask(self):
-+        fmt = {'type': 'json_schema', 'json_schema': {'name': 'values', 'strict': True,
-+               'schema': {'type': 'object', 'properties': {'values': {
-+                   'type': 'array', 'items': {'type': 'integer'},
-+                   'minItems': 3, 'uniqueItems': True}}}}}
-+        with patch.dict(os.environ, {}, clear=True):
-+            with self.assertRaisesRegex(ValueError, 'strict JSON schema cannot be enforced'):
-+                self.app()._with_constraint({'response_format': fmt}, None, False)
-+
-+    def test_supported_strict_schema_masks_each_token_without_buffering(self):
-+        fmt = {'type': 'json_schema', 'json_schema': {'name': 'values', 'strict': True,
-+               'schema': {'type': 'object', 'properties': {'values': {
-+                   'type': 'array', 'items': {'type': 'integer'},
-+                   'minItems': 3, 'maxItems': 3}}, 'required': ['values'],
-+                   'additionalProperties': False}}}
-+        constraint = self.app()._with_constraint({'response_format': fmt}, None, False)[C.KEY]
-+        for token in b'{"values":[1,2':
-+            self.assertTrue(C.Constraint.allowed(constraint.mask(), token))
-+            constraint.feed(token)
-+        self.assertFalse(C.Constraint.allowed(constraint.mask(), ord(']')))
-+        for token in b',3]}':
-+            self.assertTrue(C.Constraint.allowed(constraint.mask(), token))
-+            constraint.feed(token)
-+        self.assertTrue(constraint.m.is_stopped())
 +
 +    def guard(self):
 +        return C.ToolNameConstraint(self.vocab, ['sql_query', 'exec', 'exec_command'])

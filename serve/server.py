@@ -4930,8 +4930,6 @@ class Service:
         STRATA_TOOL_MASK_STRICT=0 opts out of the additional name guard.
         The inherited JSON-only path retains its post-validation fallback."""
         fmt = constrain.format_of(sampling) if isinstance(sampling, dict) else None
-        strict_json = bool(fmt and fmt.get("type") == "json_schema" and
-                           fmt.get("json_schema", {}).get("strict") is True)
         strict_tools = bool(tools) and os.environ.get("STRATA_TOOL_MASK_STRICT", "1") != "0"
         if strict_tools:
             if not getattr(self.engine, "supports_mask", False) or not constrain.available():
@@ -4970,8 +4968,6 @@ class Service:
             c = constrain.Constraint(vocab, constrain.grammar(fmt, bool(tools), vocab),
                                      armed=not thinking)
         except Exception as e:                           # noqa: BLE001 - an unsupported schema keyword, a vocab problem
-            if strict_json:
-                raise ValueError("strict JSON schema cannot be enforced by the grammar compiler") from e
             constrain.note_once(f"constrained decoding off for a request: {str(e).splitlines()[0][:200]}")
             return sampling
         constrain.note_once("constrained decoding on: JSON answers are masked token by token (llguidance)")

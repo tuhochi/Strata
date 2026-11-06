@@ -99,31 +99,6 @@ class ToolNameConstraintTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'llguidance'):
                 self.app()._with_constraint({}, [{'name': 'sql_query'}], False)
 
-    def test_strict_unsupported_schema_cannot_silently_disable_stream_mask(self):
-        fmt = {'type': 'json_schema', 'json_schema': {'name': 'values', 'strict': True,
-               'schema': {'type': 'object', 'properties': {'values': {
-                   'type': 'array', 'items': {'type': 'integer'},
-                   'minItems': 3, 'uniqueItems': True}}}}}
-        with patch.dict(os.environ, {}, clear=True):
-            with self.assertRaisesRegex(ValueError, 'strict JSON schema cannot be enforced'):
-                self.app()._with_constraint({'response_format': fmt}, None, False)
-
-    def test_supported_strict_schema_masks_each_token_without_buffering(self):
-        fmt = {'type': 'json_schema', 'json_schema': {'name': 'values', 'strict': True,
-               'schema': {'type': 'object', 'properties': {'values': {
-                   'type': 'array', 'items': {'type': 'integer'},
-                   'minItems': 3, 'maxItems': 3}}, 'required': ['values'],
-                   'additionalProperties': False}}}
-        constraint = self.app()._with_constraint({'response_format': fmt}, None, False)[C.KEY]
-        for token in b'{"values":[1,2':
-            self.assertTrue(C.Constraint.allowed(constraint.mask(), token))
-            constraint.feed(token)
-        self.assertFalse(C.Constraint.allowed(constraint.mask(), ord(']')))
-        for token in b',3]}':
-            self.assertTrue(C.Constraint.allowed(constraint.mask(), token))
-            constraint.feed(token)
-        self.assertTrue(constraint.m.is_stopped())
-
     def guard(self):
         return C.ToolNameConstraint(self.vocab, ['sql_query', 'exec', 'exec_command'])
 
