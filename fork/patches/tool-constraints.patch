@@ -356,10 +356,10 @@ index 19b446ff..3a4559c2 100644
  markupsafe==3.0.3
 diff --git a/serve/constrain.py b/serve/constrain.py
 new file mode 100644
-index 00000000..82bc7d9d
+index 00000000..f62ded62
 --- /dev/null
 +++ b/serve/constrain.py
-@@ -0,0 +1,720 @@
+@@ -0,0 +1,733 @@
 +"""serve/constrain.py - constrained decoding for the JSON response formats: a token mask per step, from llguidance.
 +
 +The engine (strata --serve, `mask=1` on GEN, INFO token_mask=1, or token_mask=2 when it can mask a whole MTP
@@ -390,6 +390,7 @@ index 00000000..82bc7d9d
 +import json
 +import re
 +import threading
++from collections import OrderedDict
 +
 +# the custom_calls grammar (T2a) assembles its special tokens from the frontend constants, never from
 +# text literals; frontend imports nothing from serve, so this top-level import cannot cycle.
@@ -480,6 +481,8 @@ index 00000000..82bc7d9d
 +        self.eos = sorted(set(stop_ids) | {eos})
 +        self.lltok = _llg.LLTokenizer(_llg.TokenizerWrapper(_Wrapper(tok, self.tokens, self.specials, eos)),
 +                                      eos_token=self.eos)
++        self._tool_cache_lock = threading.Lock()
++        self._tool_masks = OrderedDict()
 +        # the window cut while the thinking runs: </think> when it is one token, else every token ending in '>'
 +        one = self.single(THINK_END.decode())
 +        self.cut = [one] if one is not None else [i for i, b in enumerate(self.tokens) if b.endswith(b">")]
@@ -932,19 +935,24 @@ index 00000000..82bc7d9d
 +        self.state = (0, b'')
 +        self.failed = None
 +        self.masked = 0
-+        if not hasattr(vocab, '_tool_pieces'):
-+            special = set(vocab.specials)
-+            pieces = tuple(b[1:] if i in special else b for i, b in enumerate(vocab.tokens))
-+            buckets = {}
-+            for i, b in enumerate(pieces):
-+                if b:
-+                    buckets.setdefault(b[0], []).append(i)
-+            vocab._tool_pieces = pieces
-+            vocab._tool_buckets = buckets
-+            vocab._tool_equals = tuple(i for i, b in enumerate(pieces) if b'=' in b)
-+            vocab._tool_masks = {}
++        with vocab._tool_cache_lock:
++            if not hasattr(vocab, '_tool_pieces'):
++                special = set(vocab.specials)
++                pieces = tuple(b[1:] if i in special else b for i, b in enumerate(vocab.tokens))
++                buckets = {}
++                for i, b in enumerate(pieces):
++                    if b:
++                        buckets.setdefault(b[0], []).append(i)
++                vocab._tool_pieces = pieces
++                vocab._tool_buckets = buckets
++                vocab._tool_equals = tuple(i for i, b in enumerate(pieces) if b'=' in b)
 +        self.pieces = vocab._tool_pieces
-+        self.cache = vocab._tool_masks.setdefault(tuple(sorted(self.names)), {})
++        key = tuple(sorted(self.names))
++        with vocab._tool_cache_lock:
++            self.cache = vocab._tool_masks.setdefault(key, OrderedDict())
++            vocab._tool_masks.move_to_end(key)
++            while len(vocab._tool_masks) > 8:
++                vocab._tool_masks.popitem(last=False)
 +
 +    def active(self):
 +        return self.failed is None
@@ -972,9 +980,11 @@ index 00000000..82bc7d9d
 +        return mode, tail
 +
 +    def _bits(self, state):
-+        cached = self.cache.get(state)
-+        if cached is not None:
-+            return cached
++        with self.vocab._tool_cache_lock:
++            cached = self.cache.get(state)
++            if cached is not None:
++                self.cache.move_to_end(state)
++                return cached
 +        mode, tail = state
 +        size = 4 * ((self.vocab.n + 31) // 32)
 +        if mode == 0:
@@ -997,7 +1007,10 @@ index 00000000..82bc7d9d
 +                    if i not in self.vocab.eos and self._step(state, i) is not None:
 +                        bits[i >> 3] |= 1 << (i & 7)
 +        result = bytes(bits)
-+        self.cache[state] = result
++        with self.vocab._tool_cache_lock:
++            self.cache[state] = result
++            while len(self.cache) > 128:
++                self.cache.popitem(last=False)
 +        return result
 +
 +    @staticmethod
@@ -2513,10 +2526,10 @@ index f0e2c74a..18714064 100644
      unittest.main()
 diff --git a/serve/test_tool_name_constraint.py b/serve/test_tool_name_constraint.py
 new file mode 100644
-index 00000000..aa1b201c
+index 00000000..c7139913
 --- /dev/null
 +++ b/serve/test_tool_name_constraint.py
-@@ -0,0 +1,81 @@
+@@ -0,0 +1,92 @@
 +"""Names must stay constrained across prose, thinking, multiple calls and MTP windows."""
 +import base64
 +import os
@@ -2581,6 +2594,17 @@ index 00000000..aa1b201c
 +        self.assertEqual(c.mask(), before)
 +        self.assertTrue(C.Constraint.allowed(base64.b64decode(rows[-1]), ord('q')))
 +        self.assertFalse(C.Constraint.allowed(base64.b64decode(rows[-1]), ord('x')))
++
++    def test_many_toolboxes_do_not_accumulate_unbounded_masks(self):
++        first = C.ToolNameConstraint(self.vocab, ['original'])
++        self.feed(first, '<function=')
++        for i in range(20):
++            guard = C.ToolNameConstraint(self.vocab, ['tool_' + str(i)])
++            self.feed(guard, '<function=tool_' + str(i) + '>')
++        self.assertLessEqual(len(self.vocab._tool_masks), 8)
++        # Eviction must not change an already-active request's declared names.
++        self.assertTrue(C.Constraint.allowed(first.mask(), ord('o')))
++        self.assertFalse(C.Constraint.allowed(first.mask(), ord('t')))
 +
 +    def test_illegal_emitted_token_fails_closed(self):
 +        c = self.guard()

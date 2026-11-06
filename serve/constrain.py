@@ -28,6 +28,7 @@ import base64
 import json
 import re
 import threading
+from collections import OrderedDict
 
 # the custom_calls grammar (T2a) assembles its special tokens from the frontend constants, never from
 # text literals; frontend imports nothing from serve, so this top-level import cannot cycle.
@@ -118,6 +119,8 @@ class Vocab:
         self.eos = sorted(set(stop_ids) | {eos})
         self.lltok = _llg.LLTokenizer(_llg.TokenizerWrapper(_Wrapper(tok, self.tokens, self.specials, eos)),
                                       eos_token=self.eos)
+        self._tool_cache_lock = threading.Lock()
+        self._tool_masks = OrderedDict()
         # the window cut while the thinking runs: </think> when it is one token, else every token ending in '>'
         one = self.single(THINK_END.decode())
         self.cut = [one] if one is not None else [i for i, b in enumerate(self.tokens) if b.endswith(b">")]
@@ -570,19 +573,24 @@ class ToolNameConstraint:
         self.state = (0, b'')
         self.failed = None
         self.masked = 0
-        if not hasattr(vocab, '_tool_pieces'):
-            special = set(vocab.specials)
-            pieces = tuple(b[1:] if i in special else b for i, b in enumerate(vocab.tokens))
-            buckets = {}
-            for i, b in enumerate(pieces):
-                if b:
-                    buckets.setdefault(b[0], []).append(i)
-            vocab._tool_pieces = pieces
-            vocab._tool_buckets = buckets
-            vocab._tool_equals = tuple(i for i, b in enumerate(pieces) if b'=' in b)
-            vocab._tool_masks = {}
+        with vocab._tool_cache_lock:
+            if not hasattr(vocab, '_tool_pieces'):
+                special = set(vocab.specials)
+                pieces = tuple(b[1:] if i in special else b for i, b in enumerate(vocab.tokens))
+                buckets = {}
+                for i, b in enumerate(pieces):
+                    if b:
+                        buckets.setdefault(b[0], []).append(i)
+                vocab._tool_pieces = pieces
+                vocab._tool_buckets = buckets
+                vocab._tool_equals = tuple(i for i, b in enumerate(pieces) if b'=' in b)
         self.pieces = vocab._tool_pieces
-        self.cache = vocab._tool_masks.setdefault(tuple(sorted(self.names)), {})
+        key = tuple(sorted(self.names))
+        with vocab._tool_cache_lock:
+            self.cache = vocab._tool_masks.setdefault(key, OrderedDict())
+            vocab._tool_masks.move_to_end(key)
+            while len(vocab._tool_masks) > 8:
+                vocab._tool_masks.popitem(last=False)
 
     def active(self):
         return self.failed is None
@@ -610,9 +618,11 @@ class ToolNameConstraint:
         return mode, tail
 
     def _bits(self, state):
-        cached = self.cache.get(state)
-        if cached is not None:
-            return cached
+        with self.vocab._tool_cache_lock:
+            cached = self.cache.get(state)
+            if cached is not None:
+                self.cache.move_to_end(state)
+                return cached
         mode, tail = state
         size = 4 * ((self.vocab.n + 31) // 32)
         if mode == 0:
@@ -635,7 +645,10 @@ class ToolNameConstraint:
                     if i not in self.vocab.eos and self._step(state, i) is not None:
                         bits[i >> 3] |= 1 << (i & 7)
         result = bytes(bits)
-        self.cache[state] = result
+        with self.vocab._tool_cache_lock:
+            self.cache[state] = result
+            while len(self.cache) > 128:
+                self.cache.popitem(last=False)
         return result
 
     @staticmethod

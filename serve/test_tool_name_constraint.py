@@ -63,6 +63,17 @@ class ToolNameConstraintTests(unittest.TestCase):
         self.assertTrue(C.Constraint.allowed(base64.b64decode(rows[-1]), ord('q')))
         self.assertFalse(C.Constraint.allowed(base64.b64decode(rows[-1]), ord('x')))
 
+    def test_many_toolboxes_do_not_accumulate_unbounded_masks(self):
+        first = C.ToolNameConstraint(self.vocab, ['original'])
+        self.feed(first, '<function=')
+        for i in range(20):
+            guard = C.ToolNameConstraint(self.vocab, ['tool_' + str(i)])
+            self.feed(guard, '<function=tool_' + str(i) + '>')
+        self.assertLessEqual(len(self.vocab._tool_masks), 8)
+        # Eviction must not change an already-active request's declared names.
+        self.assertTrue(C.Constraint.allowed(first.mask(), ord('o')))
+        self.assertFalse(C.Constraint.allowed(first.mask(), ord('t')))
+
     def test_illegal_emitted_token_fails_closed(self):
         c = self.guard()
         self.feed(c, '<function=')

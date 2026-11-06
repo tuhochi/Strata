@@ -1,5 +1,6 @@
 """Exercise patch replay and installer refusal paths without network or model downloads."""
 import os
+import json
 import pathlib
 import shutil
 import subprocess
@@ -15,7 +16,7 @@ class ReleaseTools(unittest.TestCase):
     def test_patch_replays_idempotently_and_rejects_modified_payload(self):
         with tempfile.TemporaryDirectory() as tmp:
             target = pathlib.Path(tmp) / 'upstream'
-            subprocess.run(['git', 'worktree', 'add', '--detach', str(target), 'v0.2.11'], cwd=ROOT, check=True, capture_output=True)
+            subprocess.run(['git', 'worktree', 'add', '--detach', str(target), json.loads((ROOT / 'fork/release.json').read_text())['upstream_commit']], cwd=ROOT, check=True, capture_output=True)
             try:
                 command = [sys.executable, str(ROOT / 'fork/patch.py'), '--target', str(target)]
                 subprocess.run(command + ['--check'], check=True, capture_output=True)

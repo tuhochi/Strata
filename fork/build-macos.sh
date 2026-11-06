@@ -37,6 +37,9 @@ cp "$SOURCE"/metal/src/engine/msl/*.metal "$OUT/engine-stage/metal/engine-msl/"
 cp "$SOURCE/third_party/ggml/ggml-common.h" "$OUT/engine-stage/metal/ggml-common.h"
 cp "$SOURCE/data/draft_vocab.bin" "$SOURCE/data/expert-profile.bin" "$OUT/engine-stage/metal/data/"
 cp "$SOURCE/LICENSE" "$OUT/engine-stage/"
+cp "$DEPS/llama.cpp/LICENSE" "$OUT/engine-stage/LICENSE-llama.cpp"
+cp "$DEPS/metal-cpp-extract/metal-cpp/LICENSE.txt" "$OUT/engine-stage/LICENSE-metal-cpp.txt"
+cp "$SOURCE/third_party/antirez-ds4/LICENSE" "$OUT/engine-stage/LICENSE-antirez-ds4"
 python - "$SOURCE" "$OUT" "$SOURCE_COMMIT" <<'PY'
 import json,pathlib,platform,subprocess,sys
 source,out=map(pathlib.Path,sys.argv[1:3]);meta=json.loads((source/'fork/release.json').read_text());build={**meta,'source_commit':sys.argv[3],'builder':{'platform':platform.platform(),'architecture':platform.machine(),'sdk':subprocess.check_output(['xcrun','--show-sdk-version'],text=True).strip(),'compiler':subprocess.check_output(['clang','--version'],text=True).splitlines()[0]}}

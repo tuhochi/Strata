@@ -33,10 +33,10 @@ jobs:
             if (!/^v\d+(?:\.\d+){2,3}-p[1-9]\d*$/.test(tag)) throw new Error('Invalid fork release');
             if (context.ref.startsWith('refs/tags/') && context.ref !== `refs/tags/${tag}`) throw new Error('Tag and release disagree');
             const folder = `releases/${tag}`;
-            const proof = JSON.parse(fs.readFileSync(`${folder}/HARDWARE-VALIDATION.json`));
-            if (!proof.checks?.length || proof.checks.some(c => !c.passed)) throw new Error('Missing successful hardware checks');
+            const proof = JSON.parse(fs.readFileSync(`${folder}/INSTALLATION-VALIDATION.json`));
+            if (!proof.checks?.length || proof.checks.some(c => !c.passed)) throw new Error('Missing successful installation checks');
             const latest = context.ref === 'refs/heads/patched';
-            const args = {...context.repo, tag_name: tag, name: `Strata ${tag.slice(1)} for Apple Silicon`, draft: false, prerelease: false, make_latest: latest ? 'true' : 'false', body: `Official ${tag.split('-p')[0]} plus the fork's Qwen XML tool-name constraints.\n\nInstall the prebuilt Terminal and Metal engine with install-fork.sh. Requires Apple Silicon and macOS 15+. Model weights are separate.\n\nSource, limitations and update instructions: https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${tag}/fork/README.md\n\nArchives are identical to the committed release artifacts. See BUILD-REPORT.json and HARDWARE-VALIDATION.json for provenance and actual checks.`};
+            const args = {...context.repo, tag_name: tag, name: `Strata ${tag.slice(1)} for Apple Silicon`, draft: false, prerelease: false, make_latest: latest ? 'true' : 'false', body: `Official ${tag.split('-p')[0]} plus the fork's Qwen XML tool-name constraints.\n\nInstall the prebuilt Terminal and Metal engine with install-fork.sh. Requires Apple Silicon and macOS 15+. Model weights are separate.\n\nSource, limitations and update instructions: https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${tag}/fork/README.md\n\nArchives are identical to the committed release artifacts. See BUILD-REPORT.json and INSTALLATION-VALIDATION.json for provenance and actual checks. Model validation on the owner’s macstudio is reported separately; installation never starts a model.`};
             let release;
             try { release = (await github.rest.repos.getReleaseByTag({...context.repo, tag})).data; }
             catch(e) { if(e.status !== 404) throw e; release = (await github.rest.repos.createRelease(args)).data; }

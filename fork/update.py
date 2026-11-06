@@ -13,7 +13,7 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--upstream', help='official tag; omitted: latest published release')
 parser.add_argument('--patch', type=int, default=1)
 args = parser.parse_args()
-if args.patch < 1: raise SystemExit('Patch revision must be positive')
+if not 1 <= args.patch <= 999: raise SystemExit('Patch revision must be between 1 and 999')
 if subprocess.check_output(['git', 'status', '--porcelain'], cwd=root):
     raise SystemExit('Commit or resolve the current work before updating')
 release = args.upstream
@@ -31,8 +31,11 @@ if result.returncode:
 meta_path = root / 'fork/release.json'
 meta = json.loads(meta_path.read_text())
 engine = re.search(r'project\(strata VERSION ([0-9.]+)', (root / 'CMakeLists.txt').read_text()).group(1)
+parts = engine.split('.')
+while len(parts) < 4: parts.append('0')
+parts[3] = str(int(parts[3]) * 1000 + args.patch)
 meta.update(release=label, upstream_release=release, upstream_commit=upstream, patch_revision=args.patch,
-            component_version=engine + '.' + str(args.patch))
+            component_version='.'.join(parts))
 meta_path.write_text(json.dumps(meta, indent=2) + '\n')
 p = root / 'strata_cli/__init__.py'
 p.write_text(re.sub(r'PRODUCT_VERSION = "[^"]+"', 'PRODUCT_VERSION = "' + label[1:] + '"', p.read_text()))

@@ -29,7 +29,7 @@ printf '%s\n' "$RELEASE" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?-p[1-9][
 FEED=$RAW/$RELEASE/releases/$RELEASE
 ROOT=${STRATA_FORK_DATA_DIR:-$HOME/.local/share/strata-fork}
 BIN=${STRATA_FORK_BIN_DIR:-$HOME/.local/bin}
-mkdir -p "$ROOT/bin" "$BIN"
+mkdir -p "$ROOT/bin" "$ROOT/install" "$ROOT/profiles" "$ROOT/runtime" "$ROOT/presets" "$BIN"
 fetch "$FEED/install.sh" "$WORK/install.sh"
 # Upstream's installer verifies the feed signature using the public key in our Control package.
 STRATA_FEED="$FEED" STRATA_DATA_DIR="$ROOT" STRATA_BIN_DIR="$ROOT/bin" sh "$WORK/install.sh"
@@ -50,6 +50,11 @@ done
 ROOT=$(CDPATH= cd -- "$(dirname -- "$self")" && pwd -P)
 export STRATA_DATA_DIR="$ROOT"
 export STRATA_COMPONENTS_DIR="$ROOT/components"
+export STRATA_INSTALL_DIR="$ROOT/install"
+export STRATA_PROFILE_DIR="$ROOT/profiles"
+export STRATA_RUNTIME_DIR="$ROOT/runtime"
+export STRATA_LAUNCH_PRESET_DIR="$ROOT/presets"
+export XDG_STATE_HOME="$ROOT/state"
 export STRATA_UPDATE_FEED="$(cat "$ROOT/feed-url")/strata-feed.json"
 export STRATA_TOOL_MASK=1 STRATA_TOOL_NAME_ENUM=1
 export STRATA_TOOL_MASK_STRICT=${STRATA_TOOL_MASK_STRICT:-1}

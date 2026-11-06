@@ -94,7 +94,11 @@ main() {
   version=$2; rel=$3; want=$4
   say "  Terminal $version ($(( ${5:-0} / 1048576 )) MB)"
   say "Downloading…"
-  fetch "$FEED/$rel" "$work/terminal.tar.gz" || die "the download failed. Check your internet connection and run this again; nothing was installed."
+  case "$rel" in
+    https://*|http://*) archive_url=$rel ;;
+    *) archive_url=$FEED/$rel ;;
+  esac
+  fetch "$archive_url" "$work/terminal.tar.gz" || die "the download failed. Check your internet connection and run this again; nothing was installed."
   got=$(sha "$work/terminal.tar.gz")
   [ "$got" = "$want" ] || die "the download does not match the release's checksum (got $got, wanted $want). It was not installed; try again, and if it repeats the release folder is damaged."
   say "  Checksum ok."
