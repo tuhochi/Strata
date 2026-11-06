@@ -3332,6 +3332,50 @@ index bfe8374b..aa587d90 100644
              if (!cancelled) {
                  // a prompt stopped halfway leaves the session somewhere between two chunks: nothing to continue from
                  // (the checkpoints taken while reading it are still good)
+diff --git a/strata_cli/launch/screens.py b/strata_cli/launch/screens.py
+index 25104df4..775d951c 100644
+--- a/strata_cli/launch/screens.py
++++ b/strata_cli/launch/screens.py
+@@ -1673,7 +1673,19 @@ class SaveScreen(Base):
+         lines = self.summary_lines()
+         warnings = self.ctx.warnings()
+         body_h = self.query_one("#body").size.height
+-        full_need = 2 + len(lines) + len(warnings) + 3 + 3
++        summary = self.query_one("#summary", Static)
++        full = Text()
++        full.append("Save as preset, then launch\n", style=f"bold {ACCENT}")
++        full.append("  Name   ")
++        full.append("(type below)\n", style=MUTE)
++        for k, v in lines:
++            full.append(f"  {k:<10}{v}\n")
++        for n in warnings:
++            full.append(f"  ! {n}\n", style=WARN)
++        full.rstrip()
++        # Long storage paths and warnings can occupy several rendered rows.
++        width = max(1, summary.content_size.width or self.width())
++        full_need = len(full.wrap(self.app.console, width)) + 3 + 3
+         compact = bool(body_h) and full_need > body_h
+         name = self.query_one("#name", Input)
+         name.set_class(compact, "slim")
+@@ -1691,16 +1703,8 @@ class SaveScreen(Base):
+                 t.append(f"  ! {warnings[0]}" + (f"  (+{len(warnings) - 1} more)" if len(warnings) > 1 else "") + "\n", style=WARN)
+             t.rstrip()
+         else:
+-            t = Text()
+-            t.append("Save as preset, then launch\n", style=f"bold {ACCENT}")
+-            t.append("  Name   ")
+-            t.append("(type below)\n", style=MUTE)
+-            for k, v in lines:
+-                t.append(f"  {k:<10}{v}\n")
+-            for n in warnings:
+-                t.append(f"  ! {n}\n", style=WARN)
+-            t.rstrip()
+-        self.query_one("#summary", Static).update(t)
++            t = full
++        summary.update(t)
+         if getattr(self, "_compact", None) != compact:       # the body's height changes with it: look again once the layout has settled
+             self._compact = compact
+             self.call_after_refresh(self.paint)
 diff --git a/sycl/include/strata/core/verify.hpp b/sycl/include/strata/core/verify.hpp
 index d17b4480..2d2b5cba 100644
 --- a/sycl/include/strata/core/verify.hpp
@@ -3628,6 +3672,35 @@ index 80d6f904..a24b639b 100644
                  return updater.detect_hardware(environ or {})
  
      def pick(self, hardware):
+diff --git a/tests/terminal/test_tuiqa_wizard.py b/tests/terminal/test_tuiqa_wizard.py
+index 8bcb1486..2733dc5d 100644
+--- a/tests/terminal/test_tuiqa_wizard.py
++++ b/tests/terminal/test_tuiqa_wizard.py
+@@ -42,6 +42,24 @@ class Base(unittest.TestCase):
+ 
+ 
+ class SaveChoices(Base):
++    def test_long_storage_path_keeps_all_save_choices_visible(self):
++        ctx = make_ctx()
++        ctx.settings.family, ctx.settings.model = "qwen", "IQ3_S"
++        folder = self.home.base / ("nested-model-storage-" * 6) / "Strata-data"
++        folder.mkdir(parents=True)
++        ctx.settings.data_dir = str(folder)
++
++        async def case(app, pilot, ctx):
++            app.goto("save")
++            await pilot.pause(0.3)
++            shown = text_of(app)
++            for choice in ("Save as a preset and launch", "Launch without saving", "Save the preset and stop here"):
++                self.assertIn(choice, shown)
++            body, menu = app.screen.query_one("#body"), app.screen.menu()
++            self.assertLessEqual(menu.region.bottom, body.region.bottom)
++            self.assertGreaterEqual(menu.region.y, body.region.y)
++        self.run_app(case, ctx=ctx, size=(80, 24))
++
+     def test_the_three_choices_and_the_name_are_on_screen_at_every_size(self):
+         async def case(app, pilot, ctx):
+             await press(pilot, *("enter",) * 7, "n", "enter")
 diff --git a/tests/terminal/test_update_with_model_ds.py b/tests/terminal/test_update_with_model_ds.py
 index 36eece2d..f176367a 100644
 --- a/tests/terminal/test_update_with_model_ds.py

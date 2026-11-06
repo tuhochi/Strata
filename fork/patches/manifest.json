@@ -23,6 +23,8 @@
     "tests/terminal/test_launch_tui_walk.py",
     "tests/terminal/test_sycl_package.py",
     "tests/terminal/test_update_with_model_ds.py",
+    "tests/terminal/test_tuiqa_wizard.py",
+    "strata_cli/launch/screens.py",
     "docs/DETAILS.md",
     "include/strata/core/token_mask.hpp",
     "include/strata/core/verify.hpp",
@@ -49,5 +51,5 @@
     "metal/src/engine/window.cpp",
     "metal/CMakeLists.txt"
   ],
-  "sha256": "47fed67124deb85d275712424a077e2a2b4a4842c946c853b0072250220282ca"
+  "sha256": "ac53e16163e40677dda49f15bde100dd89ca3aa80458697daaf5c7d67db396db"
 }
