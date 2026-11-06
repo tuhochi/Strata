@@ -1,0 +1,45 @@
+{
+  "release": "v0.2.11-p1",
+  "artifact_commit": "006f6b64",
+  "compiled_source_commit": "47369b49ce38ccc330358a97ef3ff5ae1a2158f9",
+  "verified_utc": "2026-11-06T08:26:22.316455+00:00",
+  "platform": "macos-arm64",
+  "public_installations": [
+    {
+      "installer": "https://github.com/tuhochi/Strata/releases/download/v0.2.11-p1/install-fork.sh",
+      "arguments": [
+        "--version",
+        "v0.2.11-p1"
+      ],
+      "fresh_prefix": true,
+      "signature_verified": true,
+      "engine_file_hashes_verified": true,
+      "reported_product": "0.2.11-p1",
+      "reported_component": "0.1.57.1",
+      "bundled_python": "3.12.15",
+      "feed_mode": "immutable tagged release",
+      "model_test_start": "--version only",
+      "passed": true
+    },
+    {
+      "installer": "https://raw.githubusercontent.com/tuhochi/Strata/patched/fork/install.sh",
+      "arguments": [],
+      "fresh_prefix": true,
+      "signature_verified": true,
+      "engine_file_hashes_verified": true,
+      "reported_product": "0.2.11-p1",
+      "reported_component": "0.1.57.1",
+      "bundled_python": "3.12.15",
+      "feed_mode": "signed stable channel",
+      "model_test_start": "--version only",
+      "passed": true
+    }
+  ],
+  "latest_release_installer": {
+    "url": "https://github.com/tuhochi/Strata/releases/latest/download/install-fork.sh",
+    "matches_committed_bootstrap": true,
+    "sha256": "9d29c941aa35b70f892551cda8fab2903eec8af175a0795d1fdb324f2f733f52"
+  },
+  "server_or_model_started_on_atlas": false,
+  "macstudio": "Owner-controlled installation and model validation pending; existing service unchanged."
+}
