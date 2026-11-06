@@ -1,5 +1,6 @@
 """Exercise patch replay and installer refusal paths without network or model downloads."""
 import os
+import hashlib
 import json
 import pathlib
 import shutil
@@ -14,6 +15,13 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 class ReleaseTools(unittest.TestCase):
     @unittest.skipUnless((ROOT / '.git').exists(), 'requires developer Git checkout')
     def test_patch_replays_idempotently_and_rejects_modified_payload(self):
+        # Verify the exported Git bytes too: autocrlf must not invalidate the manifest.
+        committed = json.loads(subprocess.check_output(
+            ['git', 'show', 'HEAD:fork/patches/manifest.json'], cwd=ROOT))
+        payload = subprocess.check_output(
+            ['git', 'show', 'HEAD:fork/patches/tool-constraints.patch'], cwd=ROOT)
+        self.assertEqual(hashlib.sha256(payload).hexdigest(), committed['sha256'],
+                         'committed patch bytes must match their pinned checksum')
         with tempfile.TemporaryDirectory() as tmp:
             target = pathlib.Path(tmp) / 'upstream'
             subprocess.run(['git', 'worktree', 'add', '--detach', str(target), json.loads((ROOT / 'fork/release.json').read_text())['upstream_commit']], cwd=ROOT, check=True, capture_output=True)
