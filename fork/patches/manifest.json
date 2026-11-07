@@ -14,6 +14,8 @@
     }
   ],
   "paths": [
+    "tests/terminal/test_connections.py",
+    "tests/terminal/test_drafting_tuned.py",
     ".github/workflows/terminal-minimal-server.yml",
     "apps/host/tests/component-updates.test.mjs",
     "tests/desktop/test_tester_readme.py",
@@ -52,5 +54,5 @@
     "metal/src/engine/window.cpp",
     "metal/CMakeLists.txt"
   ],
-  "sha256": "f2e4e34778d95a4eea2fd4ab708e3266f9e3dfdfc8d0d060aefb5d2f7d9d82c0"
+  "sha256": "0c31ddfbd5e613d75b7f2cf65d8d3eacd5ddb3fe0cc63c8a0505eb0326fb500a"
 }
