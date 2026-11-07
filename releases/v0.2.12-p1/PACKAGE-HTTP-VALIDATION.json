@@ -1,0 +1,13 @@
+{
+  "scope": "installed macOS ARM package HTTP with fake engine; no GPU or model inference",
+  "checks": [
+    {
+      "case": "installed status advertises structured output and constrained decoding",
+      "passed": true
+    },
+    {
+      "case": "installed JSON Schema HTTP request succeeds with fake engine",
+      "passed": true
+    }
+  ]
+}

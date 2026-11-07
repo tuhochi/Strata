@@ -1,11 +1,16 @@
 # Patched Apple Silicon builds
 
-Version `v0.2.12-p1` rebases the p5 fixes onto upstream 0.2.12 and preserves parallel request identifiers when constructing
-masked generation requests, including image requests. It retains p4's Codex
+Version `v0.2.12-p1` is based on upstream `v0.2.12` (commit
+`146df3c468739147f520ac3816de806f71232571`), with engine `0.1.58.1-metal`.
+It retains p5's parallel request identifiers, including image requests, the
 Responses namespace fix and automatic declared-name masking without mask ENV.
-See the release's regression and installation reports for the completed checks.
-The recorded Mac model benchmarks describe p3; p5 real-model acceptance requires
-manual installation and restart on the owner's Mac.
+The speculative-generation merge preserves both the mask boundary and upstream's
+forced-continuation log-probability handling.
+
+[Release verification and limits](evaluation/P1-0212-REGRESSION-RESULTS.md).
+Historical real-model measurements describe p3 and are not measurements of this
+release. Packages support Apple Silicon Macs with macOS 15 or newer; Intel Macs
+are not a target of this fork release.
 
 This fork tracks an official release plus a numbered patch: `v0.2.11-p1`, then
 `v0.2.11-p2` for another fix on the same release, or `v0.2.12-p1` for a new base.
@@ -21,7 +26,7 @@ sh install-strata-fork.sh
 ~/.local/bin/strata-fork --version
 ```
 
-To install an exact release, add `--version v0.2.11-p1`. Without it, installation
+To install this exact release, add `--version v0.2.12-p1`. Without it, installation
 and subsequent `strata-fork update` follow this fork's signed stable feed.
 An exact-version installation keeps its feed pinned to that release. Model
 weights are not included; use `strata-fork launch --help` to select a model or

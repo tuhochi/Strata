@@ -1,0 +1,261 @@
+{
+  "release": "v0.2.12-p1",
+  "source_commit": "8e610b8fd2f810226b6877bb14485ca342fcd6a2",
+  "upstream_commit": "146df3c468739147f520ac3816de806f71232571",
+  "component_version": "0.1.58.1",
+  "full_terminal_setup_tools_and_fork": {
+    "collected": 4989,
+    "passed": 4881,
+    "skipped": 108,
+    "subtests_passed": 90,
+    "failed": 0,
+    "shards": {
+      "main": {
+        "collected": 4978,
+        "passed": 4870,
+        "skipped": 108,
+        "subtests_passed": 0,
+        "failed": 0
+      },
+      "TUI_walk": {
+        "collected": 11,
+        "passed": 11,
+        "skipped": 0,
+        "subtests_passed": 90,
+        "failed": 0
+      }
+    }
+  },
+  "full_server_minimal_runtime": {
+    "tests": 1590,
+    "passed": 1576,
+    "skipped": 14,
+    "failed": 0,
+    "seconds": 689.292
+  },
+  "automatic_constraints_without_mask_ENV": {
+    "tests": 92,
+    "passed": 90,
+    "skipped": 2,
+    "failed": 0,
+    "seconds": 20.499
+  },
+  "optional_jsonschema_validation": {
+    "tests": 92,
+    "passed": 92,
+    "skipped": 0,
+    "failed": 0,
+    "seconds": 21.554
+  },
+  "contribution_constraints_optional_jsonschema": {
+    "tests": 92,
+    "passed": 92,
+    "skipped": 0,
+    "failed": 0,
+    "seconds": 21.757
+  },
+  "app_host": {
+    "tests": 1613,
+    "passed": 1503,
+    "skipped": 110,
+    "failed": 0,
+    "node": "24.22.2"
+  },
+  "github_scripts": {
+    "tests": 17,
+    "passed": 17,
+    "failed": 0
+  },
+  "minimal_runtime_source_checkout": {
+    "tests_run": 57,
+    "tests_ran": 61,
+    "skipped": 4,
+    "failed": 0,
+    "passed": true,
+    "scope": "source_checkout_fake_engine_runtime_only"
+  },
+  "cpu_native_diagnostics": {
+    "tests": 99,
+    "passed": 93,
+    "skipped": 4,
+    "failed": 0
+  },
+  "metal_synthetic_gpu": {
+    "device": "Apple M1 Ultra",
+    "source_commit": "8e610b8fd2f810226b6877bb14485ca342fcd6a2",
+    "real_model": false,
+    "runtime_hello": "passed",
+    "mma_parity": {
+      "cases_passed": 91,
+      "result": "ALL PASS"
+    },
+    "moe_default_hardware_path": {
+      "command": "moe_mm_parity --gu Q4_K --dn Q5_1 --T 17 --v2 --tile 16,32,128,2 --dtile 64,32,2",
+      "passed": true,
+      "relative_l2_to_fp16_reference": 3.05e-05
+    },
+    "forced_nondefault_v6_on_m1": {
+      "command": "moe_mm_parity --gu Q4_K --dn Q5_1 --T 17 --v6 4 --tile 16,32,32,4 --dtile 32,32,4",
+      "passed": false,
+      "reproduced_on_clean_upstream": true,
+      "identical_output_hash": "100e84f34833e17d",
+      "production_hardware_selection": "prompt_chain enables v3/v6 only for the k4 cooperative layout; this M1 reports another layout and selects v2",
+      "scope": "not evidence of v6 correctness on other GPUs"
+    }
+  },
+  "signed_ARM_installation": {
+    "checks": 13,
+    "passed": 13,
+    "source_commit": "8e610b8fd2f810226b6877bb14485ca342fcd6a2",
+    "archives_identical_to_release": true
+  },
+  "pr": {
+    "url": "https://github.com/Niko1221/Strata/pull/5398",
+    "head": "0c6221816e33467d7c706d96f4d4440dafe5960f",
+    "ci_runs": [
+      {
+        "url": "https://github.com/tuhochi/Strata/actions/runs/42363950729",
+        "workflow": ".github/workflows/terminal-portable-monitor.yml",
+        "result": "success"
+      },
+      {
+        "url": "https://github.com/tuhochi/Strata/actions/runs/42363950748",
+        "workflow": ".github/workflows/terminal-minimal-server.yml",
+        "result": "success"
+      }
+    ]
+  },
+  "environment": "Linux: Python 3.14 pinned runtime only and Python 3.14/3.12 development tests; Node 24. macOS ARM: signed installation and CPU/library probes on the atlas builder.",
+  "test_temporary_directory": "outside Git repositories and outside protected system directories (TMPDIR=/home/hochi/.cache/strata-fork-tests/0212-tmp); signing and path-safety checks retained",
+  "not_run": [
+    "Real-model acceptance for 0.2.12-p1",
+    "CUDA/HIP/SYCL builds and GPU execution",
+    "External model-pack CPU parity tests"
+  ],
+  "limitations": [
+    "Apple Silicon macOS 15+ only; Intel Macs are not supported by these archives",
+    "Historical model measurements are p3, not this release",
+    "Optional jsonschema is not bundled; full postvalidation remains optional",
+    "Inherited uniqueItems and grammar fallback limitations remain"
+  ],
+  "packaged_source": {
+    "source_commit": "8e610b8fd2f810226b6877bb14485ca342fcd6a2",
+    "checks": [
+      {
+        "file": "serve/server.py",
+        "sha256": "465e986fff32adf4a5ddd45171d28af2e0741f79d19b44dd386c3aa07450e1a1",
+        "matches_source": true
+      },
+      {
+        "file": "serve/constrain.py",
+        "sha256": "32a14dd5cf98a8e537679684887ff396009b66c9529a14244d9bb7d906dc1d59",
+        "matches_source": true
+      },
+      {
+        "file": "serve/responses.py",
+        "sha256": "476106ddf7c269010b305ecc9c35572d61e50029e12847bb2e216ccc3a149835",
+        "matches_source": true
+      },
+      {
+        "file": "serve/structured.py",
+        "sha256": "a067899ebd85932bd515b4cbf7a609d378c680c4ea3bd7542a90565d851fe499",
+        "matches_source": true
+      },
+      {
+        "file": "strata_cli/__init__.py",
+        "sha256": "48f72ea6f535cb29cc75b11b0a56a62ee704baead036954690b9fe491d275000",
+        "matches_source": true
+      },
+      {
+        "file": "strata_control/update_keys.json",
+        "sha256": "7de0851b7cf4f85d18268a6eff57ebab571f370b7d98a34b01d960e064bfe735",
+        "matches_source": true
+      },
+      {
+        "file": "requirements.txt",
+        "sha256": "7a597873b2424230ab70a9f97c2f5e7729166a2c8c32630fd4807f058ec5bd83",
+        "matches_source": true
+      }
+    ]
+  },
+  "contribution_source_equivalence": {
+    "head": "0c6221816e33467d7c706d96f4d4440dafe5960f",
+    "checks": [
+      {
+        "file": "serve/constrain.py",
+        "sha256": "32a14dd5cf98a8e537679684887ff396009b66c9529a14244d9bb7d906dc1d59",
+        "matches_contribution": true
+      },
+      {
+        "file": "serve/server.py",
+        "sha256": "465e986fff32adf4a5ddd45171d28af2e0741f79d19b44dd386c3aa07450e1a1",
+        "matches_contribution": true
+      },
+      {
+        "file": "serve/responses.py",
+        "sha256": "476106ddf7c269010b305ecc9c35572d61e50029e12847bb2e216ccc3a149835",
+        "matches_contribution": true
+      },
+      {
+        "file": "serve/structured.py",
+        "sha256": "a067899ebd85932bd515b4cbf7a609d378c680c4ea3bd7542a90565d851fe499",
+        "matches_contribution": true
+      },
+      {
+        "file": "include/strata/core/token_mask.hpp",
+        "sha256": "049936b9dcc76f916b6f0c37828c8ecc864df252ecacadf3b857cc9d7fa6402d",
+        "matches_contribution": true
+      },
+      {
+        "file": "include/strata/core/verify.hpp",
+        "sha256": "c67d279bb24b3be0771cc09354d99959c6e50a8f73dd5ceb98c86cf7831dfcb2",
+        "matches_contribution": true
+      },
+      {
+        "file": "src/core/verify.cpp",
+        "sha256": "202a451b7a8619b0f1aeefbc7cdcae79651bfac92cb3680789d06693231daf9a",
+        "matches_contribution": true
+      },
+      {
+        "file": "src/program/generate.cpp",
+        "sha256": "0350a68122a3e9e8ee7436275cc9264a49e6b4d0bf366007019f0e2da6545bd6",
+        "matches_contribution": true
+      },
+      {
+        "file": "metal/src/engine/window.cpp",
+        "sha256": "db95e1bbfbd1246cf103f81b0068f8922e726f08ba1815c22ec133064ed99b07",
+        "matches_contribution": true
+      },
+      {
+        "file": "sycl/include/strata/core/verify.hpp",
+        "sha256": "30d82623b45c5e62018d2e3b29fe3af82ff8eb33400967d8856e88e3b9e33879",
+        "matches_contribution": true
+      },
+      {
+        "file": "sycl/src/core/verify.cpp",
+        "sha256": "6fd9e6096e825cd4273922f845efff2ec0dd3bc8fbd60cda837b5e96e5b545bf",
+        "matches_contribution": true
+      },
+      {
+        "file": "sycl/src/program/generate.cpp",
+        "sha256": "66f5834895aec0b01dc2001f2529a060acf765fcd98daecd40811d8e7945a5f8",
+        "matches_contribution": true
+      }
+    ]
+  },
+  "commands": {
+    "main": "TMPDIR=/var/tmp STRATA_TOOL_MASK_STRICT=0 python -m pytest tests tools/test_*.py tools/dsv41/test_prompt_skip.py fork/test*.py --ignore=tests/terminal/test_launch_tui_walk.py --junitxml=main.xml -q",
+    "TUI_walk": "STRATA_TOOL_MASK_STRICT=0 python -m pytest tests/terminal/test_launch_tui_walk.py -v",
+    "server": "STRATA_TOOL_MASK_STRICT=0 python -m unittest discover -s serve -p \"test_*.py\"",
+    "request_defaults": "env -u STRATA_TOOL_MASK -u STRATA_TOOL_NAME_ENUM -u STRATA_TOOL_MASK_STRICT python -m unittest serve.test_tool_name_constraint serve.test_constrain serve.test_structured",
+    "optional_jsonschema": "STRATA_TOOL_MASK_STRICT=0 python -m unittest serve.test_constrain serve.test_structured serve.test_tool_name_constraint",
+    "export_gate": "python -m pytest fork/test_release_tools.py -q (also with core.autocrlf=false)",
+    "app_host": "npm ci --ignore-scripts; npm test (apps/host, Node 24)",
+    "native_cpu": "cmake -S . -B BUILD -DSTRATA_BUILD_TESTS=ON -DSTRATA_NATIVE_EXPERTS=ON -DSTRATA_GGML_DIR=PINNED_LLAMA; cmake --build BUILD; ctest --test-dir BUILD --output-on-failure"
+  },
+  "committed_patch_export_gate": {
+    "tests": 2,
+    "passed": 2,
+    "committed_bytes_match_manifest": true
+  }
+}

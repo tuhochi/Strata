@@ -1,0 +1,10 @@
+{
+ "platform": "macos-arm64",
+ "format": "tar.gz",
+ "url": "https://raw.githubusercontent.com/tuhochi/Strata/v0.2.12-p1/releases/v0.2.12-p1/control/strata-control-0.1.58.1-macos-arm64.tar.gz",
+ "size": 54186335,
+ "sha256": "998e54aea199c669a9a0317a8966353b62ce5d8901a45818f945541549d08430",
+ "installed_bytes": 158048615,
+ "entry": "strata.py",
+ "version": "0.1.58.1"
+}
