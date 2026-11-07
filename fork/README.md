@@ -1,6 +1,6 @@
 # Patched Apple Silicon builds
 
-Version `v0.2.11-p5` preserves parallel request identifiers when constructing
+Version `v0.2.12-p1` rebases the p5 fixes onto upstream 0.2.12 and preserves parallel request identifiers when constructing
 masked generation requests, including image requests. It retains p4's Codex
 Responses namespace fix and automatic declared-name masking without mask ENV.
 See the release's regression and installation reports for the completed checks.
