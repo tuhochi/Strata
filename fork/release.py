@@ -116,8 +116,9 @@ def stage(artifacts, key_path):
         shutil.copy2(ROOT / 'fork/install.sh', release / 'install-fork.sh')
         report = {'release': label, 'source_commit': sha, 'provenance': provenance,
                   'component_version': version, 'feed_sequence': sequence, 'engine': e, 'dsv41': ds, 'control': c,
-                  'models': ['Qwen3.8-Flash-Next', 'Qwen3.6-35B-A3B', 'DeepSeekV4.1-Flash-1017'],
-                  'scope': 'Apple Silicon macOS 15+; Qwen3.8 and Qwen3.6 share the Metal engine; DeepSeek V4.1 is a separate Metal engine package. No CUDA/HIP/SYCL runtime claim.'}
+                  'models': ['Qwen3.8-Flash-Next', 'DeepSeekV4.1-Flash-1017'],
+                  'unavailable_models': ['Qwen3.6-35B-A3B'],
+                  'scope': 'Apple Silicon macOS 15+; Qwen3.8 uses the Metal engine and DeepSeek V4.1 is a separate Metal engine package. Qwen3.6 is not supported by this Mac build. No CUDA/HIP/SYCL runtime claim.'}
         (release / 'BUILD-REPORT.json').write_text(json.dumps(report, indent=2) + '\n')
         lines = []
         for p in sorted(release.rglob('*')):

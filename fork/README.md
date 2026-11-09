@@ -41,13 +41,13 @@ an Apple-notarized desktop app. The fork feed's public key is in
 `strata_control/update_keys.json`; the private key is kept on the release owner’s
 machine, outside Git and outside the builder.
 
-The fork's release builder packages the shared Qwen Metal engine for
-Qwen3.8-Flash-Next and Qwen3.6-35B-A3B, and builds the separate
-`strata-dsv41` Metal component for DeepSeekV4.1-Flash-1017. Both engine
-packages are signed and included in the same update feed. Staging fails if the
-DeepSeek package is missing or was built from a different source commit. This
-is package availability; model-specific runtime acceptance still needs to be
-recorded on supported Apple Silicon hardware.
+The fork's release builder packages the Qwen Metal engine for
+Qwen3.8-Flash-Next and builds the separate `strata-dsv41` Metal component for
+DeepSeekV4.1-Flash-1017. Both engine packages are signed and included in the
+same update feed. Staging fails if the DeepSeek package is missing or was
+built from a different source commit. Qwen3.6-35B-A3B uses a separate engine
+path that the Mac build does not support. Model-specific runtime acceptance
+still needs to be recorded on supported Apple Silicon hardware.
 
 ## Tool-name patch
 
