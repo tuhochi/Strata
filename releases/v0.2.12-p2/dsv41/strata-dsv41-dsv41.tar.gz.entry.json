@@ -1,0 +1,19 @@
+{
+ "version": "0.1.58.2",
+ "platform": "macos-arm64",
+ "backend": "metal",
+ "variant": "",
+ "archs": [
+  "apple-gpu"
+ ],
+ "min_driver": {},
+ "min_runtime": null,
+ "build_id": "d24d625ce09931310c13ddf3b2eb26423cee235c",
+ "format": "tar.gz",
+ "url": "https://raw.githubusercontent.com/tuhochi/Strata/v0.2.12-p2/releases/v0.2.12-p2/dsv41/strata-dsv41-dsv41.tar.gz",
+ "size": 1730324,
+ "sha256": "bb87f714c5cf0332145a017ea04e59313a25ffe569f75b211331c9bf270a9741",
+ "manifest_sha256": "78d574afad5a10afb12579424ffa6edbb125460bee7a2f0dee39762c0e72f768",
+ "installed_bytes": 4648698,
+ "notes": ""
+}

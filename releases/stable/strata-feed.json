@@ -7,12 +7,35 @@
     "format": "tar.gz",
     "installed_bytes": 158048615,
     "platform": "macos-arm64",
-    "sha256": "998e54aea199c669a9a0317a8966353b62ce5d8901a45818f945541549d08430",
-    "size": 54186335,
-    "url": "https://raw.githubusercontent.com/tuhochi/Strata/v0.2.12-p1/releases/v0.2.12-p1/control/strata-control-0.1.58.1-macos-arm64.tar.gz"
+    "sha256": "efb86eb6c57a4b6b8f74d154e265c3a1de7c478d3925d85e26db859f0f47b685",
+    "size": 54186280,
+    "url": "https://raw.githubusercontent.com/tuhochi/Strata/v0.2.12-p2/releases/v0.2.12-p2/control/strata-control-0.1.58.2-macos-arm64.tar.gz"
    }
   ],
-  "version": "0.1.58.1"
+  "version": "0.1.58.2"
+ },
+ "dsv41": {
+  "packages": [
+   {
+    "archs": [
+     "apple-gpu"
+    ],
+    "backend": "metal",
+    "build_id": "d24d625ce09931310c13ddf3b2eb26423cee235c",
+    "format": "tar.gz",
+    "installed_bytes": 4648698,
+    "manifest_sha256": "78d574afad5a10afb12579424ffa6edbb125460bee7a2f0dee39762c0e72f768",
+    "min_driver": {},
+    "min_runtime": null,
+    "notes": "",
+    "platform": "macos-arm64",
+    "sha256": "bb87f714c5cf0332145a017ea04e59313a25ffe569f75b211331c9bf270a9741",
+    "size": 1730324,
+    "url": "https://raw.githubusercontent.com/tuhochi/Strata/v0.2.12-p2/releases/v0.2.12-p2/dsv41/strata-dsv41-dsv41.tar.gz",
+    "variant": "",
+    "version": "0.1.58.2"
+   }
+  ]
  },
  "engine": {
   "packages": [
@@ -21,25 +44,25 @@
      "apple-gpu"
     ],
     "backend": "metal",
-    "build_id": "8e610b8fd2f810226b6877bb14485ca342fcd6a2",
+    "build_id": "d24d625ce09931310c13ddf3b2eb26423cee235c",
     "format": "tar.gz",
     "installed_bytes": 15055174,
-    "manifest_sha256": "0cc7d6eead35cf9f908e731f5380822644dacbe4065aa1e4ffb8b0c33dd33a91",
+    "manifest_sha256": "e4b7cc6253c341739e9574692219d8accadb403bd48a1ff2df8323559c28c9ee",
     "min_driver": {},
     "min_runtime": null,
     "notes": "",
     "platform": "macos-arm64",
-    "sha256": "1392eb9022467e1c87fe36f81b99a5aac0d50e00aae06754fadb70286822a30d",
-    "size": 5440389,
-    "url": "https://raw.githubusercontent.com/tuhochi/Strata/v0.2.12-p1/releases/v0.2.12-p1/engine/strata-engine-engine.tar.gz",
+    "sha256": "eca97d010b2f0e1b44a750428aa188bbdcfcd1352f1f7093dad23def68754ccf",
+    "size": 5440370,
+    "url": "https://raw.githubusercontent.com/tuhochi/Strata/v0.2.12-p2/releases/v0.2.12-p2/engine/strata-engine-engine.tar.gz",
     "variant": "",
-    "version": "0.1.58.1"
+    "version": "0.1.58.2"
    }
   ]
  },
  "expires_at": null,
  "feed": "strata-updates",
- "generated_at": "2026-11-07T10:27:53Z",
+ "generated_at": "2026-11-09T07:03:54Z",
  "schema_version": 1,
- "sequence": 6
+ "sequence": 7
 }
