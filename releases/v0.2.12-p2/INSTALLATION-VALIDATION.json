@@ -1,0 +1,32 @@
+{
+  "source_commit": "d24d625ce09931310c13ddf3b2eb26423cee235c",
+  "platform": "macos-arm64",
+  "checks": [
+    {
+      "case": "signed update feed verified with the bundled fork public key",
+      "passed": true
+    },
+    {
+      "case": "Qwen Metal package manifest and all files verified",
+      "passed": true
+    },
+    {
+      "case": "DeepSeek Metal package manifest and all files verified",
+      "passed": true
+    },
+    {
+      "case": "relocated Terminal bundle, private Python, constraint module and trust key verified on Atlas",
+      "passed": true
+    },
+    {
+      "case": "Terminal CLI reports v0.2.12-p2 and component 0.1.58.2",
+      "passed": true
+    },
+    {
+      "case": "Control and both engine packages identify the same source commit",
+      "passed": true
+    }
+  ],
+  "model_execution": "not run; Atlas had no DeepSeek model pack, and the build did not start a model or server",
+  "scope": "Build and package verification only; no model-level inference claim."
+}
