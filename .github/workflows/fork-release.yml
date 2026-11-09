@@ -42,7 +42,7 @@ jobs:
             catch(e) { if(e.status !== 404) throw e; release = (await github.rest.repos.createRelease(args)).data; }
             const assets = await github.paginate(github.rest.repos.listReleaseAssets, {...context.repo, release_id:release.id});
             const files = fs.readdirSync(folder).filter(n=>fs.statSync(path.join(folder,n)).isFile()).map(n=>path.join(folder,n));
-            for (const sub of ['control','engine']) {
+            for (const sub of ['control','engine','dsv41']) {
               for (const n of fs.readdirSync(`${folder}/${sub}`)) if(n.endsWith('.tar.gz')) files.push(`${folder}/${sub}/${n}`);
             }
             for(const file of files) {
