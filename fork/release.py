@@ -22,7 +22,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / 'packaging'))
 import feed_tool
-from strata_control import feed, signing
+from strata_control import engine_component, feed, signing
 
 
 def metadata():
@@ -66,6 +66,15 @@ def stage(artifacts, key_path):
     sha = source_commit()
     if provenance['source_commit'] != sha:
         raise SystemExit('Artifacts do not match the current source commit')
+    dsv41 = artifacts / 'dsv41' / f'{version}-macos-arm64-metal'
+    if not dsv41.is_dir():
+        raise SystemExit(f'Missing DeepSeek engine package: {dsv41}')
+    dsv41_component = engine_component.read_manifest(dsv41)
+    if (dsv41_component.version, dsv41_component.platform, dsv41_component.backend, dsv41_component.build_id) != (
+            version, 'macos-arm64', 'metal', sha):
+        raise SystemExit('DeepSeek engine does not match this release version, platform, backend and source commit')
+    if dsv41_component.entrypoint != 'strata-dsv41':
+        raise SystemExit('DeepSeek package entrypoint must be strata-dsv41')
     target = ROOT / 'releases' / label
     if target.exists():
         raise SystemExit('Release folder already exists; releases are immutable')
@@ -86,6 +95,10 @@ def stage(artifacts, key_path):
         feed_tool.sign_package(signed_engine, key)
         prefix = f'https://raw.githubusercontent.com/{meta["repository"]}/{label}/releases/{label}/'
         e = feed_tool.pack_engine(signed_engine, release / 'engine', url_prefix=prefix + 'engine/')
+        signed_dsv41 = work / 'dsv41'
+        shutil.copytree(dsv41, signed_dsv41)
+        feed_tool.sign_package(signed_dsv41, key)
+        ds = feed_tool.pack_engine(signed_dsv41, release / 'dsv41', url_prefix=prefix + 'dsv41/', prefix='strata-dsv41')
         archive = artifacts / 'control' / f'strata-terminal-{version}-darwin-arm64.tar.gz'
         unpack = work / 'control'
         unpack.mkdir()
@@ -95,12 +108,16 @@ def stage(artifacts, key_path):
         if (bundle / 'COMMIT').read_text().strip() != sha:
             raise SystemExit('Control and engine came from different commits')
         c = feed_tool.pack_control(bundle, release / 'control', version=version, platform='macos-arm64', url_prefix=prefix + 'control/')
-        doc = feed_tool.build_feed(release, key=key, sequence=sequence, engine_dir=release / 'engine', control_dir=release / 'control')
+        doc = feed_tool.build_feed(release, key=key, sequence=sequence, engine_dir=release / 'engine',
+                                   dsv41_dir=release / 'dsv41', control_dir=release / 'control')
+        if len(doc.get('dsv41', {}).get('packages', [])) != 1:
+            raise SystemExit('The signed feed must contain the DeepSeek engine package')
         shutil.copy2(ROOT / 'packaging/install.sh', release / 'install.sh')
         shutil.copy2(ROOT / 'fork/install.sh', release / 'install-fork.sh')
         report = {'release': label, 'source_commit': sha, 'provenance': provenance,
-                  'component_version': version, 'feed_sequence': sequence, 'engine': e, 'control': c,
-                  'scope': 'Apple Silicon macOS 15+, Qwen XML tool calls; no CUDA/HIP/SYCL runtime claim'}
+                  'component_version': version, 'feed_sequence': sequence, 'engine': e, 'dsv41': ds, 'control': c,
+                  'models': ['Qwen3.8-Flash-Next', 'Qwen3.6-35B-A3B', 'DeepSeekV4.1-Flash-1017'],
+                  'scope': 'Apple Silicon macOS 15+; Qwen3.8 and Qwen3.6 share the Metal engine; DeepSeek V4.1 is a separate Metal engine package. No CUDA/HIP/SYCL runtime claim.'}
         (release / 'BUILD-REPORT.json').write_text(json.dumps(report, indent=2) + '\n')
         lines = []
         for p in sorted(release.rglob('*')):
