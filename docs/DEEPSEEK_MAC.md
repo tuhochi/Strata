@@ -15,7 +15,7 @@ on the one Mac it was measured on, and what it cannot do yet.
 | Mac | Apple Silicon (M1 or newer), macOS 15 or newer. Measured on an M5 Max with 128 GB. |
 | Memory | 64 GB or more. A Mac with less still starts, but most of the model is read from the SSD for every word, so it is much slower. Setup says so and asks before it goes on. |
 | Disk | 2.00 set: 257 GB. 2.25 set: 274 GB (the 111 GB n-gram table is shared). Use the internal SSD or an NVMe drive, not a USB or network drive. |
-| Pictures | On when the installed `strata-dsv41` carries the Metal picture tower (its program contains the text `STRATA_DS4_METAL_VISION_V1`; setup puts the picture file into the pack and starts the engine with `--vision on`). With an engine without it, text only: setup says "DeepSeek on a Mac reads text only with this engine (its picture reader needs an engine update)" and does not fetch the picture file. Qwen on the Mac keeps its pictures. |
+| Pictures | The p2 DeepSeek Mac package (component 0.1.58.2) contains the Metal picture tower and its kernels. Setup checks the binary marker `STRATA_DS4_METAL_VISION_V1`, fetches the picture file into the model pack, and starts the engine with `--vision on`. A package without the marker is text-only: setup says "DeepSeek on a Mac reads text only with this engine (its picture reader needs an engine update)" and skips that file. The p2 release was not verified with an end-to-end image inference; the marker confirms the tower was built into the package. Qwen3.8 on the Mac uses the separately packaged `strata-vision` reader. Qwen3.6 is not offered by this Mac build. |
 
 ## Install it
 

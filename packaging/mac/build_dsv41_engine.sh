@@ -8,7 +8,8 @@
 # packaging/package_engine.py and verifies every hash. It does NOT sign: the feed key stays offline, and a package made here is
 # unsigned and loads (see packaging/ENGINE-COMPONENT.md, Signature).
 #
-# The package is text-only on purpose (--no-picture-reader): DeepSeek reads pictures with its own tower, which the Metal engine has not run.
+# DeepSeek's picture tower is integrated into this Metal engine. --no-picture-reader omits the separate generic strata-vision
+# sidecar; it does not disable DeepSeek vision. The packaged binary must carry STRATA_DS4_METAL_VISION_V1 or this build fails.
 # Needs: Xcode Command Line Tools, cmake + ninja (a pip venv is enough: python3 -m venv v && v/bin/pip install cmake ninja), Apple's
 # metal-cpp (METAL_CPP_DIR) and the llama.cpp tree setup pins (STRATA_GGML_DIR). Defaults: ~/strata-mac/metal-cpp, ~/strata-mac/llamacpp.
 #
@@ -46,6 +47,17 @@ if [ ! -x "$EXE" ]; then
 fi
 "$NINJA" -C "$BUILD" strata_ds4 || exit 1      # (always: a no-op when current; an existing build folder must not package a stale binary)
 
+# Guard the capability that setup uses to decide whether to fetch and pack mmproj. This checks the built program, not model inference.
+python3 - "$EXE" <<'PY' || exit 1
+from pathlib import Path
+import sys
+
+exe = Path(sys.argv[1])
+if b"STRATA_DS4_METAL_VISION_V1" not in exe.read_bytes():
+    raise SystemExit(f"{exe} has no DeepSeek Metal vision marker; refusing to package a text-only Mac engine")
+print(f"== DeepSeek Metal vision marker present: {exe}")
+PY
+
 STAGE="$ROOT/pkg/dsv41-stage"
 rm -rf "$STAGE"
 mkdir -p "$STAGE/metal/kernels" "$STAGE/metal/src/engine/msl"
@@ -62,6 +74,19 @@ python3 "$ROOT/packaging/package_engine.py" --src "$STAGE" --backend metal --ver
   --platform macos-arm64 --arch apple-gpu --entrypoint strata-dsv41 --build-id "$BUILD_ID" --no-picture-reader --include 'metal/**' --out "$OUT" || exit 1
 DIR="$OUT/$VERSION-macos-arm64-metal"
 python3 "$ROOT/packaging/package_engine.py" --verify "$DIR" || exit 1
+python3 - "$DIR" <<'PY' || exit 1
+from pathlib import Path
+import sys
+
+package = Path(sys.argv[1])
+exe = package / "strata-dsv41"
+if b"STRATA_DS4_METAL_VISION_V1" not in exe.read_bytes():
+    raise SystemExit("packaged strata-dsv41 lost its DeepSeek Metal vision marker")
+for name in ("ds4_vision.metal", "ds4_vision_mpp.metal"):
+    if not (package / "metal/src/engine/msl" / name).is_file():
+        raise SystemExit(f"packaged DeepSeek Metal vision kernel is missing: {name}")
+print("== packaged DeepSeek Metal vision marker and kernels verified")
+PY
 
 # self-containment: the package must run with the source tree's kernels hidden
 PACK=${PACK:-$HOME/strata-mac/pack-2.25-real}
