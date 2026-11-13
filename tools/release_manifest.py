@@ -88,6 +88,12 @@ def expand(manifest):
     return [n.format(v=manifest["product_version"]) for n in INSTALLER_NAMES]
 
 
+def label(version):
+    """A patched build's version is upstream's plus the patch number (0.2.13-p1): the docs describe the release itself,
+    so the code's -pN label and the manifest's plain version are the same product."""
+    return re.sub(r"-p\d+$", "", version)
+
+
 def rewrite(text, regex, keys, manifest):
     """Replace each version group of every match of `regex` with the manifest's value."""
     def sub(m):
@@ -127,7 +133,7 @@ def check(manifest):
     if manifest["tag"] != "v" + manifest["product_version"]:
         problems.append("tag %s does not match product_version %s" % (manifest["tag"], manifest["product_version"]))
     for where, (found, key) in code_versions().items():
-        if found != manifest[key]:
+        if label(found) != label(manifest[key]):
             problems.append("%s says %s, docs/data/release.json %s is %s" % (where, found, key, manifest[key]))
     assets = set(manifest["assets"])
     for name in expand(manifest):

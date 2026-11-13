@@ -17825,6 +17825,39 @@
    "retired_in": ""
   },
   {
+   "name": "STRATA_MASK_STATS",
+   "backends": [
+    "cuda-hip"
+   ],
+   "reads": [
+    {
+     "file": "src/program/generate.cpp",
+     "line": 18224,
+     "backend": "cuda-hip",
+     "fn": "getenv"
+    }
+   ],
+   "parse": "flag",
+   "default_state": "off",
+   "code_default": null,
+   "engine_sets": [],
+   "engine_defaults": [],
+   "launch_files": [],
+   "launch_sets": [],
+   "launch_reads": [],
+   "doc_mentions": [],
+   "first_commit": "52922ef5c4",
+   "first_date": "2026-10-11",
+   "since": null,
+   "last_commit": "52922ef5c4",
+   "last_date": "2026-10-11",
+   "status": "research",
+   "owner": "program",
+   "note": "[fork] mask window statistics for one request: MQ exchanges, rows asked/answered/adopted, MQ round-trip ms, one stderr line when set (src/program/generate.cpp:18222)",
+   "retire_after": "",
+   "retired_in": ""
+  },
+  {
    "name": "STRATA_MEMORY_LIMIT_MIB",
    "backends": [
     "cuda-hip"

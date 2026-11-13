@@ -34,6 +34,8 @@
     "tools/test_docker_entrypoint.py",
     "tools/test_setup_download.py",
     "tools/test_setup_unsloth.py",
+    "tools/release_manifest.py",
+    "data/settings-register.json",
     "requirements.txt",
     "serve/constrain.py",
     "serve/fake_mask_engine.py",
@@ -52,7 +54,8 @@
     "sycl/src/core/verify.cpp",
     "sycl/src/program/generate.cpp",
     "metal/src/engine/window.cpp",
-    "metal/CMakeLists.txt"
+    "metal/CMakeLists.txt",
+    "docs/CAPABILITIES.md"
   ],
-  "sha256": "2af9f748de1e2ba0419141885e3dad70231c6df63bb464719b0a416eb5002ad1"
+  "sha256": "bbe2b9022eacf7b73e832c1bf9a4fe87d0e12fd15cb18fe1e208358ed67bc1ee"
 }
