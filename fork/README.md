@@ -80,6 +80,10 @@ hardware-tested by this Mac release.
 
 ## Maintain on bolder, build on atlas
 
+The full checklist for porting these patches to a newer upstream release, with
+the conflict hotspots, the test commands, the build and the CI verification:
+[PORTING.md](PORTING.md).
+
 ```sh
 python3 fork/update.py --upstream v0.2.12 --patch 1
 # Review conflicts and the source diff; never discard upstream changes blindly.
