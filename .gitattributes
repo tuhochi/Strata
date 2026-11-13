@@ -31,3 +31,4 @@ serve/web/vendor/** -text
 
 # Fork patches are checksum-pinned byte payloads, including source line endings.
 fork/patches/*.patch -text
+third_party/strata-ggml/** text eol=lf

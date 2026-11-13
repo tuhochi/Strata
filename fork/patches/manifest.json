@@ -1,6 +1,6 @@
 {
-  "upstream_release": "v0.2.12",
-  "upstream_commit": "146df3c468739147f520ac3816de806f71232571",
+  "upstream_release": "v0.2.13",
+  "upstream_commit": "d2f096475817d4666c364c820b0ca830f751cfc5",
   "upstream_patches": [
     {
       "pr": 3800,
@@ -54,5 +54,5 @@
     "metal/src/engine/window.cpp",
     "metal/CMakeLists.txt"
   ],
-  "sha256": "0c31ddfbd5e613d75b7f2cf65d8d3eacd5ddb3fe0cc63c8a0505eb0326fb500a"
+  "sha256": "2af9f748de1e2ba0419141885e3dad70231c6df63bb464719b0a416eb5002ad1"
 }
