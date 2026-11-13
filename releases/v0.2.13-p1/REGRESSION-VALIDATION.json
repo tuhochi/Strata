@@ -1,0 +1,122 @@
+{
+  "release": "v0.2.13-p1",
+  "source_commit": "9dfbe1b3b9ff4b63f66f9bea69f00c884fc59b25",
+  "upstream_commit": "d2f096475817d4666c364c820b0ca830f751cfc5",
+  "component_version": "0.1.59.1",
+  "full_terminal_setup_tools_and_fork": {
+    "collected": 5291,
+    "passed": 5179,
+    "skipped": 111,
+    "subtests_passed": 1353,
+    "failed": 2,
+    "shards": {
+      "main": {
+        "collected": 5291,
+        "passed": 5179,
+        "skipped": 111,
+        "subtests_passed": 1353,
+        "failed": 2
+      },
+      "TUI_walk": {
+        "collected": 11,
+        "passed": 11,
+        "skipped": 0,
+        "subtests_passed": 90,
+        "failed": 0
+      }
+    }
+  },
+  "load_failures": {
+    "note": "Both failures are load-related: the 32 CPU cores on the builder were shared with other work (host load 13-49 during the run). Each test passes green when run on its own.",
+    "tests": [
+      {
+        "test": "tests/terminal/test_bench_term_0213_qatui.py::TermEndsTheEngine::test_sigint_while_the_benchmark_runs_stops_the_engine",
+        "failure": "SIGINT after 60s was not delivered within the test timeout under load",
+        "single_run": "passed when run on its own"
+      },
+      {
+        "test": "tests/terminal/test_runtime.py::RuntimeTests::test_foreground_jsonl_emits_ready_and_stop_without_human_stdout",
+        "failure": "SUBFAILED(signal='sigint') after a 15s timeout under load",
+        "single_run": "passed (1 passed + 3 subtests) when run on its own"
+      }
+    ]
+  },
+  "full_server_minimal_runtime": {
+    "tests": 1592,
+    "passed": 1578,
+    "skipped": 14,
+    "failed": 0,
+    "seconds": 800.891
+  },
+  "automatic_constraints_without_mask_ENV": {
+    "tests": 92,
+    "passed": 92,
+    "skipped": 0,
+    "failed": 0,
+    "seconds": 21.696
+  },
+  "optional_jsonschema_validation": {
+    "tests": 92,
+    "passed": 92,
+    "skipped": 0,
+    "failed": 0,
+    "seconds": 21.770
+  },
+  "app_host": {
+    "tests": 1638,
+    "passed": 1528,
+    "skipped": 110,
+    "failed": 0,
+    "node": "24.22.3"
+  },
+  "github_scripts": {
+    "tests": 17,
+    "passed": 17,
+    "failed": 0
+  },
+  "minimal_runtime_source_checkout": {
+    "tests_run": 57,
+    "tests_ran": 61,
+    "skipped": 4,
+    "failed": 0,
+    "passed": true,
+    "scope": "source_checkout_fake_engine_runtime_only"
+  },
+  "cpu_native_diagnostics": {
+    "tests": 77,
+    "passed": 70,
+    "skipped": 7,
+    "failed": 0,
+    "note": "ctest: 100% tests passed out of 77, 7 skipped (Q2_0 expert parity tests that need a model pack, not in this tree). Built with -DSTRATA_BUILD_TESTS=ON -DSTRATA_NATIVE_EXPERTS=ON."
+  },
+  "signed_ARM_installation": {
+    "checks": 13,
+    "passed": 13,
+    "source_commit": "9dfbe1b3b9ff4b63f66f9bea69f00c884fc59b25",
+    "archives_identical_to_release": true
+  },
+  "environment": "Linux (bolder): Python 3.14 pinned runtime only and Python 3.14/3.12 development tests; Node 24.22.3. macOS ARM (atlas): signed installation on a loopback fixture and native CPU diagnostics (cmake + ctest).",
+  "test_temporary_directory": "outside Git repositories and outside protected system directories (TMPDIR=/home/hochi/tmp/strata-tests); venv outside the repo (/home/hochi/.cache/venvs/strata-0.2.13-p1); signing and path-safety checks retained",
+  "not_run": [
+    "Real-model acceptance for 0.2.13-p1 (owner runs this on their own Mac)",
+    "Metal synthetic GPU parity (mma_parity / moe_mm_parity): no test build with tests enabled was run on atlas for this release",
+    "CUDA/HIP/SYCL builds and GPU execution",
+    "External model-pack CPU parity tests"
+  ],
+  "limitations": [
+    "Apple Silicon macOS 15+ only; Intel Macs are not supported by these archives",
+    "Historical model measurements are not this release",
+    "Optional jsonschema is not bundled; full postvalidation remains optional",
+    "Inherited uniqueItems and grammar fallback limitations remain"
+  ],
+  "commands": {
+    "main": "TMPDIR=/home/hochi/tmp/strata-tests STRATA_TOOL_MASK_STRICT=0 python -m pytest tests tools/test_*.py tools/dsv41/test_prompt_skip.py fork/test*.py --ignore=tests/terminal/test_launch_tui_walk.py --junitxml=main.xml -q",
+    "TUI_walk": "TMPDIR=/home/hochi/tmp/strata-tests STRATA_TOOL_MASK_STRICT=0 python -m pytest tests/terminal/test_launch_tui_walk.py -v",
+    "server": "TMPDIR=/home/hochi/tmp/strata-tests STRATA_TOOL_MASK_STRICT=0 python -m unittest discover -s serve -p \"test_*.py\"",
+    "request_defaults": "TMPDIR=/home/hochi/tmp/strata-tests env -u STRATA_TOOL_MASK -u STRATA_TOOL_NAME_ENUM -u STRATA_TOOL_MASK_STRICT python -m unittest serve.test_tool_name_constraint serve.test_constrain serve.test_structured",
+    "optional_jsonschema": "TMPDIR=/home/hochi/tmp/strata-tests STRATA_TOOL_MASK_STRICT=0 python -m unittest serve.test_constrain serve.test_structured serve.test_tool_name_constraint",
+    "export_gate": "python -m pytest fork/test_release_tools.py -q",
+    "app_host": "cd apps/host && npm ci --ignore-scripts && npm test (Node 24.22.3)",
+    "native_cpu": "cmake -S . -B BUILD -DSTRATA_BUILD_TESTS=ON -DSTRATA_NATIVE_EXPERTS=ON -DSTRATA_GGML_DIR=$HOME/builds/strata-fork/deps/llama.cpp; cmake --build BUILD; ctest --test-dir BUILD --output-on-failure (atlas)"
+  }
+}

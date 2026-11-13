@@ -1,0 +1,1 @@
+macos-arm64 0.1.59.1 https://raw.githubusercontent.com/tuhochi/Strata/v0.2.13-p1/releases/v0.2.13-p1/control/strata-control-0.1.59.1-macos-arm64.tar.gz 9280fb524f9f5cb70efc9f582b3e81ac7e4def48fbbf1c2a0a5ebe0cb5c99599 54298632
