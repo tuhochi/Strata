@@ -1,0 +1,126 @@
+{
+  "release": "v0.2.14-p1",
+  "source_commit": "e29a0cd6387a9718962408dd3b98cdbd9606cb37",
+  "upstream_commit": "09b603886925994d0d4461857b01321ef3aa431c",
+  "upstream_release": "v0.2.14",
+  "component_version": "0.1.60.1",
+  "full_terminal_setup_tools_and_fork": {
+    "collected": 5237,
+    "passed": 5155,
+    "skipped": 82,
+    "subtests_passed": 1630,
+    "failed": 0,
+    "seconds": 1299.77,
+    "shards": {
+      "main": {
+        "collected": 5237,
+        "passed": 5155,
+        "skipped": 82,
+        "subtests_passed": 1630,
+        "failed": 0,
+        "seconds": 1299.77
+      },
+      "TUI_walk": {
+        "collected": 9,
+        "passed": 9,
+        "skipped": 0,
+        "subtests_passed": 56,
+        "failed": 0,
+        "seconds": 222.05
+      }
+    }
+  },
+  "first_run_environment_note": {
+    "note": "A first run of the main corpus had two failures, both in tests that configure a real Ninja tree (tools/test_build_cuda_windows.py::Targets::test_real_ninja_trees and tools/test_engine_targets.py::EngineTargetsRealNinja::test_real_trees). The new virtualenv lacked cmake and ninja from requirements-build.txt. After installing that file both tests pass on their own (2 passed in 0.65 s) and the full rerun above is green. No source change was needed.",
+    "second_venv": "/home/hochi/.cache/venvs/strata-0.2.14-p1 (Python 3.14.4) with requirements.txt, requirements-dev.txt, requirements-build.txt and jsonschema 4.26.0"
+  },
+  "full_server_minimal_runtime": {
+    "tests": 1616,
+    "passed": 1596,
+    "skipped": 20,
+    "failed": 0,
+    "seconds": 701.556
+  },
+  "automatic_constraints_without_mask_ENV": {
+    "tests": 92,
+    "passed": 92,
+    "skipped": 0,
+    "failed": 0,
+    "seconds": 21.622
+  },
+  "optional_jsonschema_validation": {
+    "tests": 92,
+    "passed": 92,
+    "skipped": 0,
+    "failed": 0,
+    "seconds": 21.763
+  },
+  "app_host": {
+    "tests": 1654,
+    "passed": 1544,
+    "skipped": 110,
+    "failed": 0,
+    "node": "24.22.3"
+  },
+  "github_scripts": {
+    "tests": 17,
+    "passed": 17,
+    "failed": 0
+  },
+  "patch_export_gate": {
+    "in_repository": "2 passed (fork/test_release_tools.py)",
+    "from_export": "1 passed, 1 skipped: the patch-replay test needs a git checkout and skips outside one",
+    "patch_applies_to_pristine_upstream": true,
+    "patch_reverses_off_it_again": true,
+    "patch_sha256": "0b81ef377c44afd045364776d4e87da8413418bb093de829896b44d046094842",
+    "patch_paths": 39,
+    "patch_files_in_diff": 33
+  },
+  "release_manifest_and_docs": {
+    "tools_release_manifest_check": "ok (0.2.14, engine 0.1.60) with PRODUCT_VERSION 0.2.14-p1",
+    "tools_capability_table_check": "ok",
+    "tools_settings_register_check": "ok"
+  },
+  "cpu_native_diagnostics": {
+    "tests": 119,
+    "passed": 112,
+    "skipped": 7,
+    "failed": 0,
+    "seconds": 81.69,
+    "note": "cmake + ctest on atlas: '100% tests passed out of 119'. Skipped: io_priority_test, expert_multi_test, native_hadamard_test, tq_cpu_parity, tq_cpu_parity_avx2, expert_parity, pool_test (they need a model pack, not in this tree). Built with -DSTRATA_BUILD_TESTS=ON -DSTRATA_NATIVE_EXPERTS=ON."
+  },
+  "environment": "Linux (bolder): Python 3.14.4 in a virtualenv outside the repository, Node 24.22.3. macOS ARM (atlas): Darwin 26.6.2, SDK 26.5, Python 3.12.14, cmake 4.4.3 for the native CPU diagnostics; build probes recorded in the release's BUILD-REPORT.json.",
+  "test_temporary_directory": "outside Git repositories and outside protected system directories (TMPDIR=/home/hochi/tmp/strata-tests); venv outside the repo (/home/hochi/.cache/venvs/strata-0.2.14-p1); signing and path-safety checks retained",
+  "deepseek_retirement": {
+    "change": "v0.2.14 retired DeepSeek V4.1 (222 files at v0.2.13, 15 at v0.2.14). The fork's Mac build no longer builds or packs a dsv41 engine.",
+    "consequences_checked": [
+      "the main corpus is smaller than v0.2.13-p1's (5237 collected against 5291): the four DeepSeek files upstream deleted are gone",
+      "the reviewed patch lists 39 paths (was 42) and 33 files in the diff (was 37)",
+      "the publish workflow no longer requires a dsv41 folder in the release"
+    ]
+  },
+  "not_run": [
+    "Real-model acceptance for v0.2.14-p1 (owner runs this on their own Mac)",
+    "Metal synthetic GPU parity (mma_parity / moe_mm_parity): no test build with tests enabled was run on atlas for this release",
+    "CUDA/HIP/SYCL builds and GPU execution",
+    "External model-pack CPU parity tests"
+  ],
+  "limitations": [
+    "Apple Silicon macOS 15+ only; Intel Macs are not supported by these archives",
+    "Historical model measurements are not this release",
+    "Optional jsonschema is not bundled; full postvalidation remains optional",
+    "Inherited uniqueItems and grammar fallback limitations remain",
+    "The docs pages describe upstream's 0.2.14 release, including the frozen dsv41 packages upstream still lists; the fork's own feed carries that entry for older Terminals and ships no DeepSeek engine of its own"
+  ],
+  "commands": {
+    "main": "TMPDIR=/home/hochi/tmp/strata-tests STRATA_TOOL_MASK_STRICT=0 python -m pytest tests tools/test_*.py fork/test*.py --ignore=tests/terminal/test_launch_tui_walk.py --junitxml=main.xml -q",
+    "TUI_walk": "TMPDIR=/home/hochi/tmp/strata-tests STRATA_TOOL_MASK_STRICT=0 python -m pytest tests/terminal/test_launch_tui_walk.py -v",
+    "server": "TMPDIR=/home/hochi/tmp/strata-tests STRATA_TOOL_MASK_STRICT=0 python -m unittest discover -s serve -p \"test_*.py\"",
+    "request_defaults": "TMPDIR=/home/hochi/tmp/strata-tests env -u STRATA_TOOL_MASK -u STRATA_TOOL_NAME_ENUM -u STRATA_TOOL_MASK_STRICT python -m unittest serve.test_tool_name_constraint serve.test_constrain serve.test_structured",
+    "optional_jsonschema": "TMPDIR=/home/hochi/tmp/strata-tests STRATA_TOOL_MASK_STRICT=0 python -m unittest serve.test_constrain serve.test_structured serve.test_tool_name_constraint",
+    "export_gate": "python -m pytest fork/test_release_tools.py -q; git checkout-index -a -f --prefix=/tmp/export-check/; (cd /tmp/export-check && python -m pytest fork/test_release_tools.py -q)",
+    "app_host": "cd apps/host && npm ci --ignore-scripts && npm test (Node 24.22.3)",
+    "github_scripts": "node --test .github/scripts/item-check.test.js",
+    "native_cpu": "cmake -S . -B BUILD -DSTRATA_BUILD_TESTS=ON -DSTRATA_NATIVE_EXPERTS=ON -DSTRATA_GGML_DIR=$HOME/builds/strata-fork/deps/llama.cpp; cmake --build BUILD; ctest --test-dir BUILD --output-on-failure (atlas)"
+  }
+}

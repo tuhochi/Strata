@@ -1,7 +1,7 @@
 # Patched Apple Silicon builds
 
-Version `v0.2.12-p1` is based on upstream `v0.2.12` (commit
-`146df3c468739147f520ac3816de806f71232571`), with engine `0.1.58.1-metal`.
+Version `v0.2.14-p1` is based on upstream `v0.2.14` (commit
+`09b603886925994d0d4461857b01321ef3aa431c`), with engine `0.1.60.1-metal`.
 It retains p5's parallel request identifiers, including image requests, the
 Responses namespace fix and automatic declared-name masking without mask ENV.
 The speculative-generation merge preserves both the mask boundary and upstream's
@@ -26,7 +26,7 @@ sh install-strata-fork.sh
 ~/.local/bin/strata-fork --version
 ```
 
-To install this exact release, add `--version v0.2.12-p1`. Without it, installation
+To install this exact release, add `--version v0.2.14-p1`. Without it, installation
 and subsequent `strata-fork update` follow this fork's signed stable feed.
 An exact-version installation keeps its feed pinned to that release. Model
 weights are not included; use `strata-fork launch --help` to select a model or
@@ -85,7 +85,7 @@ the conflict hotspots, the test commands, the build and the CI verification:
 [PORTING.md](PORTING.md).
 
 ```sh
-python3 fork/update.py --upstream v0.2.12 --patch 1
+python3 fork/update.py --upstream v0.2.14 --patch 1
 # Review conflicts and the source diff; never discard upstream changes blindly.
 python3 fork/patch.py --check
 python3 -m unittest serve.test_tool_name_constraint serve.test_constrain serve.test_structured
@@ -116,9 +116,13 @@ commit, and push the distribution branch and tag:
 ```sh
 git add releases fork/LATEST
 git commit -m '[Other] publish verified macOS fork packages'
-git tag -a v0.2.12-p1 -m 'Upstream v0.2.12 plus patch 1'
-git push origin HEAD:patched v0.2.12-p1
+git tag -a v0.2.14-p1 -m 'Upstream v0.2.14 plus patch 1'
+git push origin HEAD:patched          # the branch run creates the release
+git push origin v0.2.14-p1            # then the tag run finds it
 ```
+
+Push the branch and the tag in two pushes: a single push starts both runs at
+once, and both create the same release.
 
 `main` remains the upstream branch. The `patched` branch publishes the stable feed;
 archives live under `releases/<tag>/` and their feed URLs use immutable release tags.
