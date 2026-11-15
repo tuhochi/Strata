@@ -42,10 +42,10 @@ an Apple-notarized desktop app. The fork feed's public key is in
 machine, outside Git and outside the builder.
 
 The fork's release builder packages the Qwen Metal engine for
-Qwen3.8-Flash-Next and builds the separate `strata-dsv41` Metal component for
-DeepSeekV4.1-Flash-1017. Both engine packages are signed and included in the
-same update feed. Staging fails if the DeepSeek package is missing or was
-built from a different source commit. Qwen3.6-35B-A3B uses a separate engine
+Qwen3.8-Flash-Next and signs it into the update feed. Strata 0.2.14 retired
+DeepSeek V4.1, so the feed ships no DeepSeek engine of its own; it carries the
+frozen 0.2.13-p1 entry so an older Terminal keeps the engine it already
+installs. Qwen3.6-35B-A3B uses a separate engine
 path that the Mac build does not support. Model-specific runtime acceptance
 still needs to be recorded on supported Apple Silicon hardware.
 

@@ -67,8 +67,8 @@ fork's patches sit in them:
   `docs/DETAILS.md`
 - **TUI**: `strata_cli/launch/screens.py`
 - **Tests**: `tests/terminal/test_bench_stop.py`, `test_launch_tui*.py`,
-  `test_launch_dsv41.py`, `test_sycl_package.py`, `test_tui2_023*.py`,
-  `test_tuiqa_*.py`, `test_update_with_model_ds.py`, `test_drafting_tuned.py`,
+  `test_sycl_package.py`, `test_tui2_023*.py`,
+  `test_tuiqa_*.py`, `test_drafting_tuned.py`,
   `launch_support.py`, `tests/desktop/test_tester_readme.py`,
   `tools/test_docker_entrypoint.py`, `tools/test_setup_download.py`,
   `tools/test_setup_unsloth.py`, `apps/host/tests/component-updates.test.mjs`
@@ -117,7 +117,7 @@ any Git repository.
 ```sh
 # main corpus (Terminal, setup, tools, fork)
 TMPDIR=/var/tmp STRATA_TOOL_MASK_STRICT=0 python -m pytest tests tools/test_*.py \
-  tools/dsv41/test_prompt_skip.py fork/test*.py \
+  fork/test*.py \
   --ignore=tests/terminal/test_launch_tui_walk.py --junitxml=main.xml -q
 
 # the TUI walk, on its own
@@ -199,8 +199,14 @@ release's validation report. A successful compile is not a model test.
 git add releases fork/LATEST
 git commit -m '[Other] publish verified v0.2.13-p1 Apple Silicon packages'
 git tag -a v0.2.13-p1 -m 'Upstream v0.2.13 plus patch 1'
-git push origin HEAD:patched v0.2.13-p1
+git push origin HEAD:patched          # the branch run creates the release (make_latest)
+git push origin v0.2.13-p1            # and the tag run then finds it
 ```
+
+Push the branch and the tag in **two** pushes, not one. A single push starts both
+runs at once; both create the same release, one wins and the other fails on the
+github-script step although its artifact and feed checks passed (the v0.2.13-p1
+run #13).
 
 `fork/LATEST` must contain the tag. The tag pattern is `v<major>.<minor>.<patch>-p<N>`.
 

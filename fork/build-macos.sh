@@ -39,7 +39,6 @@ cp "$SOURCE/data/draft_vocab.bin" "$SOURCE/data/expert-profile.bin" "$OUT/engine
 cp "$SOURCE/LICENSE" "$OUT/engine-stage/"
 cp "$DEPS/llama.cpp/LICENSE" "$OUT/engine-stage/LICENSE-llama.cpp"
 cp "$DEPS/metal-cpp-extract/metal-cpp/LICENSE.txt" "$OUT/engine-stage/LICENSE-metal-cpp.txt"
-cp "$SOURCE/third_party/antirez-ds4/LICENSE" "$OUT/engine-stage/LICENSE-antirez-ds4"
 python - "$SOURCE" "$OUT" "$SOURCE_COMMIT" <<'PY'
 import json,pathlib,platform,subprocess,sys
 source,out=map(pathlib.Path,sys.argv[1:3]);meta=json.loads((source/'fork/release.json').read_text());build={**meta,'source_commit':sys.argv[3],'builder':{'platform':platform.platform(),'architecture':platform.machine(),'sdk':subprocess.check_output(['xcrun','--show-sdk-version'],text=True).strip(),'compiler':subprocess.check_output(['clang','--version'],text=True).splitlines()[0]}}
@@ -47,14 +46,6 @@ source,out=map(pathlib.Path,sys.argv[1:3]);meta=json.loads((source/'fork/release
 PY
 bash "$SOURCE/packaging/build_vision_mac.sh" --llama "$DEPS/llama.cpp" --out "$OUT/engine-stage" --build "$BUILD_ROOT/builds/$SOURCE_COMMIT/vision" --jobs 6
 python "$SOURCE/packaging/package_engine.py" --src "$OUT/engine-stage" --backend metal --version "$COMPONENT" --platform macos-arm64 --arch apple-gpu --build-id "$SOURCE_COMMIT" --include 'metal/**' --include 'data/**' --out "$OUT/engine"
-# DeepSeek V4.1 is a separate engine component. Build it from the same immutable source,
-# llama.cpp checkout, Metal headers and source commit as the Qwen engine.
-STRATA_GGML_DIR="$DEPS/llama.cpp" METAL_CPP_DIR="$DEPS/metal-cpp-extract/metal-cpp" \
-  bash "$SOURCE/packaging/mac/build_dsv41_engine.sh" \
-    --version "$COMPONENT" \
-    --build "$BUILD_ROOT/builds/$SOURCE_COMMIT/metal-dsv41" \
-    --out "$OUT/dsv41" \
-    --build-id "$SOURCE_COMMIT"
 python "$SOURCE/packaging/package_terminal.py" --out "$OUT/control" --target darwin-arm64 --version "$COMPONENT" --commit "$SOURCE_COMMIT" --cache "$DEPS/python-cache"
 python "$SOURCE/fork/verify_terminal.py" "$OUT/control/strata-terminal-$COMPONENT-darwin-arm64.tar.gz"
 printf 'Build artifacts: %s\n' "$OUT"
