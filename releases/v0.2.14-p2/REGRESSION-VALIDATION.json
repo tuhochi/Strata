@@ -1,0 +1,133 @@
+{
+  "release": "v0.2.14-p2",
+  "source_commit": "71c6a321caa45b2b13810ce6efb444a096669cc0",
+  "previous_release": "v0.2.14-p1",
+  "upstream_commit": "09b603886925994d0d4461857b01321ef3aa431c",
+  "upstream_release": "v0.2.14",
+  "component_version": "0.1.60.2",
+  "change_since_p1": {
+    "summary": "Patch 2 fixes the installer. The release installer checks the signed feed with the Terminal it has just unpacked, and that check remembered the accepted feed sequence in the default component folder (~/.local/share/strata/components). A Mac that already ran upstream Strata keeps a much higher upstream sequence there and refused this fork's feed as a replayed one, installing nothing. Measured on the builder (M1 Ultra, which has upstream sequence 124 remembered): v0.2.14-p1's installer stopped with 'its sequence is 9, the accepted one is 124'; the same installer with the fix, run from the published fork URL into an empty prefix, finished, verified the feed signature and installed engine 0.1.60.1 from the v0.2.14-p1 feed.",
+    "files": [
+      "fork/install.sh: passes STRATA_COMPONENTS_DIR=ROOT/components to the release installer, the folder the installed launcher already uses",
+      "fork/test_release_tools.py: new test pins that contract without network (fails without the change)",
+      "fork/release.json, strata_cli/__init__.py, fork/README.md: v0.2.14-p2, component 0.1.60.2"
+    ],
+    "why_a_new_patch_release": "The published v0.2.14-p1 release assets cannot be replaced after publication, so the corrected installer ships as the next patch on the same upstream base. The engine and Control sources are unchanged."
+  },
+  "full_terminal_setup_tools_and_fork": {
+    "collected": 5238,
+    "passed": 5156,
+    "skipped": 82,
+    "subtests_passed": 1630,
+    "failed": 0,
+    "seconds": 1310.32,
+    "shards": {
+      "main": {
+        "collected": 5238,
+        "passed": 5156,
+        "skipped": 82,
+        "subtests_passed": 1630,
+        "failed": 0,
+        "seconds": 1310.32
+      },
+      "TUI_walk": {
+        "collected": 9,
+        "passed": 9,
+        "skipped": 0,
+        "subtests_passed": 56,
+        "failed": 0,
+        "seconds": 221.79
+      }
+    },
+    "note": "One test more than v0.2.14-p1 (5237 -> 5238 collected): the new installer test."
+  },
+  "full_server_minimal_runtime": {
+    "tests": 1616,
+    "passed": 1615,
+    "skipped": 20,
+    "failed": 1,
+    "seconds": 644.945,
+    "failure": {
+      "test": "serve.test_keepawake.KeepAwakeTests.test_service_holds_for_the_whole_request_including_early_close",
+      "kind": "flaky timing in the test, not a regression",
+      "evidence": [
+        "the reviewed patch does not touch keepawake (0 matches in fork/patches/tool-constraints.patch)",
+        "the same test passed in the v0.2.14-p1 run of the same suite",
+        "12 isolated reruns of serve.test_keepawake after the full run: 11 passed, 1 failed",
+        "4 isolated reruns in a pristine upstream v0.2.14 worktree: 4 passed",
+        "the test waits on a callback with a short timeout; it failed in both full runs, which ran under build load"
+      ]
+    }
+  },
+  "automatic_constraints_without_mask_ENV": {
+    "tests": 92,
+    "passed": 92,
+    "skipped": 0,
+    "failed": 0,
+    "seconds": 21.732
+  },
+  "optional_jsonschema_validation": {
+    "tests": 92,
+    "passed": 92,
+    "skipped": 0,
+    "failed": 0,
+    "seconds": 21.653
+  },
+  "app_host": {
+    "tests": 1654,
+    "passed": 1544,
+    "skipped": 110,
+    "failed": 0,
+    "node": "24.22.3"
+  },
+  "patch_export_gate": {
+    "in_repository": "3 passed (fork/test_release_tools.py)",
+    "from_export": "2 passed, 1 skipped: the patch-replay test needs a git checkout and skips outside one",
+    "patch_sha256": "0b81ef377c44afd045364776d4e87da8413418bb093de829896b44d046094842",
+    "patch_paths": 39,
+    "patch_files_in_diff": 33
+  },
+  "release_manifest_and_docs": {
+    "tools_release_manifest_check": "ok (0.2.14, engine 0.1.60) with PRODUCT_VERSION 0.2.14-p2",
+    "tools_capability_table_check": "ok",
+    "tools_settings_register_check": "ok"
+  },
+  "cpu_native_diagnostics": {
+    "tests": 119,
+    "passed": 112,
+    "skipped": 7,
+    "failed": 0,
+    "seconds": 81.49,
+    "note": "cmake + ctest on atlas at this source commit: '100% tests passed out of 119'. Skipped: io_priority_test, expert_multi_test, native_hadamard_test, tq_cpu_parity, tq_cpu_parity_avx2, expert_parity, pool_test (they need a model pack, which is not in this tree). Built with -DSTRATA_BUILD_TESTS=ON -DSTRATA_NATIVE_EXPERTS=ON."
+  },
+  "installation_validation": {
+    "report": "INSTALLATION-VALIDATION.json (13 checks, all passed, signed loopback feed on the Apple Silicon builder)",
+    "installer_fix_checked_on_the_builder": "The fixed fork/install.sh was run from a local copy against the then published v0.2.14-p1 feed into an empty prefix on the M1 Ultra: feed signature verified, Terminal 0.1.60.1 installed, engine 0.1.60.1 downloaded, signature-checked and test-started with --version only. No model was loaded and no server was started. This release's own public URL install is recorded after publication."
+  },
+  "environment": "Linux (bolder): Python 3.14.4 in a virtualenv outside the repository, Node 24.22.3. macOS ARM (atlas): Darwin 26.6.2, SDK 26.5, Python 3.12.14; the built Terminal reports python 3.12.15 and build 0.1.60.2.",
+  "test_temporary_directory": "outside Git repositories and outside protected system directories (TMPDIR=/home/hochi/tmp/strata-tests); venv outside the repo (/home/hochi/.cache/venvs/strata-0.2.14-p1)",
+  "not_run": [
+    "Real-model acceptance for v0.2.14-p2 (owner runs this on an Apple Silicon Mac)",
+    "CUDA/HIP/SYCL builds and GPU execution",
+    "External model-pack CPU parity tests",
+    "Installation on a Mac without an existing Strata installation that reaches the public feed (the public run used the builder, which keeps an upstream state; the empty-prefix loopback run covers the fresh case)"
+  ],
+  "limitations": [
+    "Apple Silicon macOS 15+ only; Intel Macs are not supported by these archives",
+    "Historical model measurements are not this release",
+    "Optional jsonschema is not bundled; full postvalidation remains optional",
+    "Inherited uniqueItems and grammar fallback limitations remain",
+    "The docs pages describe upstream's 0.2.14 release, including the frozen dsv41 packages upstream still lists; the fork's own feed carries that entry for older Terminals and ships no DeepSeek engine of its own",
+    "The published v0.2.14-p1 release keeps its archive and its own installer; this release supersedes it"
+  ],
+  "commands": {
+    "main": "TMPDIR=/home/hochi/tmp/strata-tests STRATA_TOOL_MASK_STRICT=0 python -m pytest tests tools/test_*.py fork/test*.py --ignore=tests/terminal/test_launch_tui_walk.py --junitxml=main.xml -q",
+    "TUI_walk": "TMPDIR=/home/hochi/tmp/strata-tests STRATA_TOOL_MASK_STRICT=0 python -m pytest tests/terminal/test_launch_tui_walk.py -q",
+    "server": "TMPDIR=/home/hochi/tmp/strata-tests STRATA_TOOL_MASK_STRICT=0 python -m unittest discover -s serve -p \"test_*.py\"",
+    "request_defaults": "TMPDIR=/home/hochi/tmp/strata-tests env -u STRATA_TOOL_MASK -u STRATA_TOOL_NAME_ENUM -u STRATA_TOOL_MASK_STRICT python -m unittest serve.test_tool_name_constraint serve.test_constrain serve.test_structured",
+    "optional_jsonschema": "TMPDIR=/home/hochi/tmp/strata-tests STRATA_TOOL_MASK_STRICT=0 python -m unittest serve.test_constrain serve.test_structured serve.test_tool_name_constraint",
+    "export_gate": "python -m pytest fork/test_release_tools.py -q; git checkout-index -a -f --prefix=/tmp/export-check-p2/; (cd /tmp/export-check-p2 && python -m pytest fork/test_release_tools.py -q)",
+    "app_host": "cd apps/host && npm test (Node 24.22.3)",
+    "native_cpu": "cmake -S . -B BUILD -DSTRATA_BUILD_TESTS=ON -DSTRATA_NATIVE_EXPERTS=ON -DSTRATA_GGML_DIR=$HOME/builds/strata-fork/deps/llama.cpp; cmake --build BUILD; ctest --test-dir BUILD --output-on-failure (atlas)"
+  }
+}

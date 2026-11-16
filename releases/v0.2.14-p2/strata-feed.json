@@ -1,0 +1,68 @@
+{
+ "channel": "stable",
+ "control": {
+  "packages": [
+   {
+    "entry": "strata.py",
+    "format": "tar.gz",
+    "installed_bytes": 153596324,
+    "platform": "macos-arm64",
+    "sha256": "012b9c49e204da6ecda32f3224d416ed1ad92582394f5b8843463c4447793341",
+    "size": 51781141,
+    "url": "https://raw.githubusercontent.com/tuhochi/Strata/v0.2.14-p2/releases/v0.2.14-p2/control/strata-control-0.1.60.2-macos-arm64.tar.gz"
+   }
+  ],
+  "version": "0.1.60.2"
+ },
+ "dsv41": {
+  "packages": [
+   {
+    "archs": [
+     "apple-gpu"
+    ],
+    "backend": "metal",
+    "build_id": "9dfbe1b3b9ff4b63f66f9bea69f00c884fc59b25",
+    "format": "tar.gz",
+    "installed_bytes": 4658686,
+    "manifest_sha256": "0d65a48a6a77c81590c0ebb3afaf16b44772f86cf8d21fe59a9589190cd996fe",
+    "min_driver": {},
+    "min_runtime": null,
+    "notes": "",
+    "platform": "macos-arm64",
+    "sha256": "8bdf164ac1e633ec929ff132d961e993467c4e6ec2728b98920c4f55cd9118bc",
+    "size": 1733735,
+    "url": "https://raw.githubusercontent.com/tuhochi/Strata/v0.2.13-p1/releases/v0.2.13-p1/dsv41/strata-dsv41-dsv41.tar.gz",
+    "variant": "",
+    "version": "0.1.59.1"
+   }
+  ]
+ },
+ "engine": {
+  "packages": [
+   {
+    "archs": [
+     "apple-gpu"
+    ],
+    "backend": "metal",
+    "build_id": "71c6a321caa45b2b13810ce6efb444a096669cc0",
+    "format": "tar.gz",
+    "installed_bytes": 15227811,
+    "manifest_sha256": "e6f4a9d45395be5737e8cc7574d69205d927eeb00aa791a48e239b320077f4d8",
+    "min_driver": {},
+    "min_runtime": null,
+    "notes": "",
+    "platform": "macos-arm64",
+    "sha256": "f44930954816f8c086b02794bf90e0d25a17ea241d4f838c22943729eff71100",
+    "size": 5608493,
+    "url": "https://raw.githubusercontent.com/tuhochi/Strata/v0.2.14-p2/releases/v0.2.14-p2/engine/strata-engine-engine.tar.gz",
+    "variant": "",
+    "version": "0.1.60.2"
+   }
+  ]
+ },
+ "expires_at": null,
+ "feed": "strata-updates",
+ "generated_at": "2026-11-16T02:21:46Z",
+ "schema_version": 1,
+ "sequence": 10
+}

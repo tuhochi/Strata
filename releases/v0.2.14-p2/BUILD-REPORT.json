@@ -1,0 +1,74 @@
+{
+  "release": "v0.2.14-p2",
+  "source_commit": "71c6a321caa45b2b13810ce6efb444a096669cc0",
+  "provenance": {
+    "release": "v0.2.14-p2",
+    "upstream_release": "v0.2.14",
+    "upstream_commit": "09b603886925994d0d4461857b01321ef3aa431c",
+    "patch_revision": 2,
+    "component_version": "0.1.60.2",
+    "repository": "tuhochi/Strata",
+    "distribution_branch": "patched",
+    "minimum_macos": "15.0",
+    "llama_cpp_commit": "3cf03257f219afbe7334045ff7c6a06ac68c627d",
+    "metal_cpp_url": "https://developer.apple.com/metal/cpp/files/metal-cpp_26.zip",
+    "metal_cpp_sha256": "4df3c078b9aadcb516212e9cb03004cbc5ce9a3e9c068fa3144d021db585a3a4",
+    "upstream_patches": [
+      {
+        "pr": 3800,
+        "commit": "fc2c1ebb7fcc33465d7e2443165112339344b56d",
+        "author": "ncphri"
+      },
+      {
+        "pr": 4222,
+        "commit": "ed7f0d1eadbb79912af6aea82afad4e5ee8b443c",
+        "author": "ncphri"
+      }
+    ],
+    "source_commit": "71c6a321caa45b2b13810ce6efb444a096669cc0",
+    "builder": {
+      "platform": "macOS-26.6.2-arm64-arm-64bit",
+      "architecture": "arm64",
+      "sdk": "26.5",
+      "compiler": "Apple clang version 21.0.0 (clang-2100.1.1.101)"
+    }
+  },
+  "component_version": "0.1.60.2",
+  "feed_sequence": 10,
+  "engine": {
+    "version": "0.1.60.2",
+    "platform": "macos-arm64",
+    "backend": "metal",
+    "variant": "",
+    "archs": [
+      "apple-gpu"
+    ],
+    "min_driver": {},
+    "min_runtime": null,
+    "build_id": "71c6a321caa45b2b13810ce6efb444a096669cc0",
+    "format": "tar.gz",
+    "url": "https://raw.githubusercontent.com/tuhochi/Strata/v0.2.14-p2/releases/v0.2.14-p2/engine/strata-engine-engine.tar.gz",
+    "size": 5608493,
+    "sha256": "f44930954816f8c086b02794bf90e0d25a17ea241d4f838c22943729eff71100",
+    "manifest_sha256": "e6f4a9d45395be5737e8cc7574d69205d927eeb00aa791a48e239b320077f4d8",
+    "installed_bytes": 15227811,
+    "notes": ""
+  },
+  "control": {
+    "platform": "macos-arm64",
+    "format": "tar.gz",
+    "url": "https://raw.githubusercontent.com/tuhochi/Strata/v0.2.14-p2/releases/v0.2.14-p2/control/strata-control-0.1.60.2-macos-arm64.tar.gz",
+    "size": 51781141,
+    "sha256": "012b9c49e204da6ecda32f3224d416ed1ad92582394f5b8843463c4447793341",
+    "installed_bytes": 153596324,
+    "entry": "strata.py",
+    "version": "0.1.60.2"
+  },
+  "models": [
+    "Qwen3.8-Flash-Next"
+  ],
+  "unavailable_models": [
+    "Qwen3.6-35B-A3B"
+  ],
+  "scope": "Apple Silicon macOS 15+; Qwen3.8 uses the Metal engine. Qwen3.6 is not supported by this Mac build. Strata 0.2.14 retired DeepSeek V4.1: the feed carries the frozen 0.2.13-p1 entry for older Terminals and ships no DeepSeek engine of its own. No CUDA/HIP/SYCL runtime claim."
+}
