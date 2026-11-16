@@ -197,16 +197,27 @@ release's validation report. A successful compile is not a model test.
 
 ```sh
 git add releases fork/LATEST
-git commit -m '[Other] publish verified v0.2.13-p1 Apple Silicon packages'
-git tag -a v0.2.13-p1 -m 'Upstream v0.2.13 plus patch 1'
-git push origin HEAD:patched          # the branch run creates the release (make_latest)
-git push origin v0.2.13-p1            # and the tag run then finds it
+git commit -m '[Other] publish verified vX.Y.Z-pN Apple Silicon packages'
+git tag -a vX.Y.Z-pN -m 'Upstream vX.Y.Z plus patch N'
+git push origin vX.Y.Z-pN             # the tag run creates the release with this tag
+git push origin HEAD:patched          # then the branch run finds it and marks it latest
 ```
 
-Push the branch and the tag in **two** pushes, not one. A single push starts both
-runs at once; both create the same release, one wins and the other fails on the
+Push in **two** pushes, one after the other. A single push starts both runs at
+once; both create the same release, one wins and the other fails on the
 github-script step although its artifact and feed checks passed (the v0.2.13-p1
 run #13).
+
+Push the **tag first**, and wait until its run is green before the branch. The
+release is then created from the tag ref. A branch push first makes GitHub
+create the release from the branch, and with it a lightweight tag at the
+repository's default branch (`main`, the upstream branch). The release then
+points at the wrong tree until someone deletes that tag and pushes the real one,
+and deleting it can take the release and its uploaded assets down again
+(v0.2.14-p2). Only the branch run asks for `make_latest`, so the tag run alone
+leaves the previous release marked latest. The workflow enforces the order: a
+branch run that finds no release for `fork/LATEST` fails with "push the tag
+first" instead of creating one.
 
 `fork/LATEST` must contain the tag. The tag pattern is `v<major>.<minor>.<patch>-p<N>`.
 

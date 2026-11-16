@@ -10,10 +10,14 @@ keeps the accepted feed sequence in the fork's own component folder, so a Mac
 that already ran upstream Strata installs this fork instead of refusing its
 feed as a replayed one.
 
-[Release verification and limits](evaluation/P1-0212-REGRESSION-RESULTS.md).
-Historical real-model measurements describe p3 and are not measurements of this
-release. Packages support Apple Silicon Macs with macOS 15 or newer; Intel Macs
-are not a target of this fork release.
+[Regression validation](../releases/v0.2.14-p2/REGRESSION-VALIDATION.json) and
+[installation checks](../releases/v0.2.14-p2/INSTALLATION-VALIDATION.json) of
+this release. The installer was also run once from this fork's published URL
+into an empty prefix on an Apple Silicon Mac that keeps an upstream Strata
+installation: it installed Terminal `0.1.60.2` and engine `0.1.60.2` and left
+the upstream folder untouched. Historical real-model measurements describe p3
+and are not measurements of this release. Packages support Apple Silicon Macs
+with macOS 15 or newer; Intel Macs are not a target of this fork release.
 
 This fork tracks an official release plus a numbered patch: `v0.2.11-p1`, then
 `v0.2.11-p2` for another fix on the same release, or `v0.2.12-p1` for a new base.
