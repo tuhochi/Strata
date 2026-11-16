@@ -25,6 +25,11 @@ def wait_for(cond, t=3.0):
     return cond()
 
 
+def last(calls):
+    """The last call, or None while the keep-awake thread has not made one yet."""
+    return calls[-1] if calls else None
+
+
 class Recorder:
     def __init__(self):
         self.calls, self.threads = [], set()
@@ -84,12 +89,16 @@ class KeepAwakeTests(unittest.TestCase):
         svc.keep_awake = ka = KeepAwake(rec)
         kinds = [k for k, _ in svc.run(tok.encode("hi"), False, None, 8, {}, threading.Event())]
         self.assertIn("done", kinds)
-        self.assertTrue(wait_for(lambda: rec.calls == [ON, ES_CONTINUOUS]))
+        # The hold is set by the keep-awake thread, not by the request: a request this short can end
+        # before that thread first ran, and then no call appears at all (measured: 6 of 150 runs).
+        # What has to hold is that a finished request leaves nothing behind; the open request below
+        # proves the hold itself.
+        self.assertTrue(wait_for(lambda: rec.calls in ([], [ON, ES_CONTINUOUS])), rec.calls)
         gen = svc.run(tok.encode("hi"), False, None, 8, {}, threading.Event())
         next(gen)
-        self.assertTrue(wait_for(lambda: rec.calls[-1] == ON))
+        self.assertTrue(wait_for(lambda: last(rec.calls) == ON), rec.calls)
         gen.close()                                           # the client left
-        self.assertTrue(wait_for(lambda: rec.calls[-1] == ES_CONTINUOUS))
+        self.assertTrue(wait_for(lambda: last(rec.calls) == ES_CONTINUOUS), rec.calls)
         ka.close()
 
     def test_default_service_has_none(self):
