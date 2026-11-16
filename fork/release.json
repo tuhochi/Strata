@@ -1,9 +1,9 @@
 {
-  "release": "v0.2.14-p1",
+  "release": "v0.2.14-p2",
   "upstream_release": "v0.2.14",
   "upstream_commit": "09b603886925994d0d4461857b01321ef3aa431c",
-  "patch_revision": 1,
-  "component_version": "0.1.60.1",
+  "patch_revision": 2,
+  "component_version": "0.1.60.2",
   "repository": "tuhochi/Strata",
   "distribution_branch": "patched",
   "minimum_macos": "15.0",

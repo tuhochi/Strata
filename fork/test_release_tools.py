@@ -47,6 +47,47 @@ class ReleaseTools(unittest.TestCase):
             finally:
                 subprocess.run(['git', 'worktree', 'remove', '--force', str(target)], cwd=ROOT, check=True, capture_output=True)
 
+    def test_installer_keeps_the_update_state_out_of_the_upstream_folder(self):
+        # A Mac that already ran upstream Strata has a higher feed sequence in the default
+        # component folder; the release installer must be told the fork's own folder, or it
+        # refuses the fork feed as a replayed one.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            bin_dir = root / 'bin'
+            bin_dir.mkdir()
+            marker = root / 'installer-env'
+            release_installer = root / 'release-install.sh'
+            release_installer.write_text(
+                '#!/bin/sh\nset -eu\n'
+                'printf "%s\\n%s\\n%s\\n" "$STRATA_DATA_DIR" "${STRATA_COMPONENTS_DIR:-unset}" "$STRATA_BIN_DIR" > "$INSTALL_ENV_MARKER"\n'
+                'mkdir -p "$STRATA_DATA_DIR/bin"\n'
+                'printf "#!/bin/sh\\nexit 0\\n" > "$STRATA_DATA_DIR/bin/strata"\n'
+                'chmod 755 "$STRATA_DATA_DIR/bin/strata"\n')
+            (bin_dir / 'uname').write_text('#!/bin/sh\ncase "$1" in -s) echo Darwin;; -m) echo arm64;; esac\n')
+            (bin_dir / 'sw_vers').write_text('#!/bin/sh\necho 15.0\n')
+            (bin_dir / 'curl').write_text(
+                '#!/bin/sh\nout=; url=\n'
+                'while [ $# -gt 0 ]; do\n'
+                '  case "$1" in -o) out=$2; shift 2 ;; http*) url=$1; shift ;; *) shift ;; esac\n'
+                'done\n'
+                'case "$url" in\n'
+                '  */fork/LATEST) printf "v0.2.14-p1\\n" > "$out" ;;\n'
+                '  */install.sh) cat "' + str(release_installer) + '" > "$out" ;;\n'
+                '  *) exit 91 ;;\n'
+                'esac\n')
+            for p in bin_dir.iterdir(): p.chmod(0o755)
+            data_dir = root / 'install'
+            env = {**os.environ, 'PATH': str(bin_dir) + os.pathsep + os.defpath,
+                   'STRATA_FORK_DATA_DIR': str(data_dir), 'STRATA_FORK_BIN_DIR': str(root / 'local-bin'),
+                   'INSTALL_ENV_MARKER': str(marker)}
+            result = subprocess.run(['sh', str(ROOT / 'fork/install.sh')], env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            data, components, bin_dir_seen = marker.read_text().splitlines()
+            self.assertEqual(data, str(data_dir))
+            self.assertEqual(bin_dir_seen, str(data_dir / 'bin'))
+            self.assertEqual(components, str(data_dir / 'components'),
+                             'the release installer must keep its accepted feed sequence in the fork folder')
+
     def test_invalid_install_requests_fail_before_any_download(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp)

@@ -1,11 +1,14 @@
 # Patched Apple Silicon builds
 
-Version `v0.2.14-p1` is based on upstream `v0.2.14` (commit
-`09b603886925994d0d4461857b01321ef3aa431c`), with engine `0.1.60.1-metal`.
+Version `v0.2.14-p2` is based on upstream `v0.2.14` (commit
+`09b603886925994d0d4461857b01321ef3aa431c`), with engine `0.1.60.2-metal`.
 It retains p5's parallel request identifiers, including image requests, the
 Responses namespace fix and automatic declared-name masking without mask ENV.
 The speculative-generation merge preserves both the mask boundary and upstream's
-forced-continuation log-probability handling.
+forced-continuation log-probability handling. Patch 2 fixes the installer: it
+keeps the accepted feed sequence in the fork's own component folder, so a Mac
+that already ran upstream Strata installs this fork instead of refusing its
+feed as a replayed one.
 
 [Release verification and limits](evaluation/P1-0212-REGRESSION-RESULTS.md).
 Historical real-model measurements describe p3 and are not measurements of this
@@ -26,7 +29,7 @@ sh install-strata-fork.sh
 ~/.local/bin/strata-fork --version
 ```
 
-To install this exact release, add `--version v0.2.14-p1`. Without it, installation
+To install this exact release, add `--version v0.2.14-p2`. Without it, installation
 and subsequent `strata-fork update` follow this fork's signed stable feed.
 An exact-version installation keeps its feed pinned to that release. Model
 weights are not included; use `strata-fork launch --help` to select a model or

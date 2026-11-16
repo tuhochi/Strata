@@ -8,7 +8,7 @@ while [ "$#" -gt 0 ]; do
   case "$1" in
     --repo) REPOSITORY=$2; shift 2 ;;
     --version) RELEASE=$2; PINNED=1; shift 2 ;;
-    --help) echo 'Usage: sh install.sh [--repo https://github.com/OWNER/REPO] [--version v0.2.11-p1]'; exit 0 ;;
+    --help) echo 'Usage: sh install.sh [--repo https://github.com/OWNER/REPO] [--version v0.2.14-p1]'; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -31,8 +31,13 @@ ROOT=${STRATA_FORK_DATA_DIR:-$HOME/.local/share/strata-fork}
 BIN=${STRATA_FORK_BIN_DIR:-$HOME/.local/bin}
 mkdir -p "$ROOT/bin" "$ROOT/install" "$ROOT/profiles" "$ROOT/runtime" "$ROOT/presets" "$BIN"
 fetch "$FEED/install.sh" "$WORK/install.sh"
-# Upstream's installer verifies the feed signature using the public key in our Control package.
-STRATA_FEED="$FEED" STRATA_DATA_DIR="$ROOT" STRATA_BIN_DIR="$ROOT/bin" sh "$WORK/install.sh"
+# Upstream's installer verifies the feed signature using the public key in our Control
+# package. It remembers the accepted feed sequence in the component folder, and that
+# marker is shared unless it is given: a Mac that already ran upstream Strata keeps a
+# much higher upstream sequence there and would refuse this fork's feed as a replay.
+# The installed launcher already uses "$ROOT/components", so the check uses it too.
+STRATA_FEED="$FEED" STRATA_DATA_DIR="$ROOT" STRATA_BIN_DIR="$ROOT/bin" \
+  STRATA_COMPONENTS_DIR="$ROOT/components" sh "$WORK/install.sh"
 if [ "$PINNED" = 1 ]; then
   printf '%s\n' "$FEED" > "$ROOT/feed-url"
 else
